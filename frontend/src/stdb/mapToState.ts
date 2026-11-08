@@ -203,6 +203,7 @@ export function mapTablesToState(input: {
   }
   const authorIdFor = (sender: string) => {
     if (sender === 'Lead' && leadEmp) return leadEmp.id;
+    if (base.employees.some((x) => x.id === `member:${sender}`)) return `member:${sender}`;
     const e = base.employees.find((x) => x.name === sender);
     return e ? e.id : sender;
   };
@@ -224,7 +225,7 @@ export function mapTablesToState(input: {
         id: String(t.id),
         title: t.text,
         detail: t.detail,
-        assigneeId: assignee ? (base.employees.find((e) => e.name === assignee)?.id ?? `member:${assignee}`) : null,
+        assigneeId: assignee ? `member:${assignee}` : null, // same id the employee's dashboard uses
         status: (t.status === 'acknowledged' ? 'acknowledged' : t.status === 'done' ? 'done' : 'open') as
           'open' | 'acknowledged' | 'done',
         urgent: t.urgent || t.escalated,
