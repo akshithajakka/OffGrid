@@ -1,15 +1,26 @@
-// War Room in a Box: SpacetimeDB module (server side)
+// OffGrid: SpacetimeDB module (server side)
 // Drop this file into your project's spacetimedb/src/index.ts
 //
-// Before the demo, change the two constants below:
-//   SETUP_PIN      a PIN only the Lead knows, used once to register the Lead console laptop
-//   LEAD_FOB_UID   the ID your blue fob printed in the Pico test (for example "4A3F9C12")
+// ACCESS FLOW
+//   1. Everyone joins the private OffGrid Wi-Fi and lands on the red gate page.
+//   2. The gate stays LOCKED until the admin taps the admin fob at the box
+//      (the laptop the Pico is plugged into = the "console"). -> system_state.admin_unlocked
+//   3. ADMIN PATH: console opens the admin dashboard.
+//   4. EMPLOYEE PATH (only once unlocked): request_access(name, role, team)
+//      -> status "awaiting_badge" -> employee taps THEIR registered fob at the box
+//      -> status "badge_verified" -> admin or that team's lead calls approve(who)
+//      -> status "approved" -> employee dashboard.
+//
+// Before the demo, change the constants below:
+//   SETUP_PIN      a PIN only the admin knows, used once to register the console laptop
+//   LEAD_FOB_UID   the admin fob's ID from the Pico test (for example "4A3F9C12")
 
 import { schema, t, table, SenderError } from 'spacetimedb/server';
 import { Timestamp } from 'spacetimedb';
 
 const SETUP_PIN = '2468';
-const LEAD_FOB_UID = 'CHANGE_ME';
+const LEAD_FOB_UID = 'CHANGE_ME'; // admin fob ID, uppercase hex
+const ADMIN_NAME = 'Incident Lead';
 const APPROVAL_WINDOW_MICROS = 30_000_000n; // 30 seconds after a fob tap
 const TASK_ESCALATE_MICROS = 120_000_000n; // 2 minutes
 const HOUR_MICROS = 3_600_000_000n;
@@ -30,17 +41,56 @@ const lead_badge = table(
   { uid: t.string().primaryKey(), owner: t.string() }
 );
 
-// Everyone who asked to join. status: pending | approved | revoked
+// Everyone who asked to join.
+// status: awaiting_badge | badge_verified | approved | denied | revoked
 const member = table(
   { name: 'member', public: true },
   {
     identity: t.identity().primaryKey(),
     name: t.string(),
     role: t.string(),
+    team: t.string(),
+    badge_uid: t.string(),
     status: t.string(),
     join_code: t.string(),
     online: t.bool(),
     requested_at: t.timestamp(),
+  }
+);
+
+// Gate state (one row, id 0). The gate page and employee path read admin_unlocked.
+const system_state = table(
+  { name: 'system_state', public: true },
+  {
+    id: t.u32().primaryKey(),
+    admin_unlocked: t.bool(),
+    unlocked_at: t.timestamp().optional(),
+    unlocked_by: t.string(),
+  }
+);
+
+// Every registered fob/card. role: admin | team_lead | employee
+// (uid is visible to clients for the demo; a production build would hide it)
+const badge = table(
+  { name: 'badge', public: true },
+  {
+    uid: t.string().primaryKey(),
+    name: t.string(),
+    team: t.string(),
+    role: t.string(),
+    registered_at: t.timestamp(),
+  }
+);
+
+// When set, the next unknown fob tapped at the box is registered to this person
+const register_mode = table(
+  { name: 'register_mode', public: true },
+  {
+    id: t.u32().primaryKey(),
+    name: t.string(),
+    team: t.string(),
+    role: t.string(),
+    until: t.timestamp(),
   }
 );
 
@@ -160,6 +210,9 @@ const legal_deadline = table(
 const spacetimedb = schema({
   console_reg,
   lead_badge,
+  system_state,
+  badge,
+  register_mode,
   member,
   approval_window,
   box_status,
@@ -241,9 +294,27 @@ function requireLead(ctx: any): string {
   if (isConsole(ctx)) return 'Lead';
   const m = ctx.db.member.identity.find(ctx.sender);
   if (!m || m.status !== 'approved') throw new SenderError('Not approved yet');
-  if (m.role !== 'Lead' && m.role !== 'IT Lead')
-    throw new SenderError('Only Incident Lead can do this');
+  if (m.role !== 'Lead' && m.role !== 'IT Lead' && m.role !== 'Team Lead')
+    throw new SenderError('Only the admin or a team lead can do this');
   return m.name;
+}
+
+function isUnlocked(ctx: any): boolean {
+  const s = ctx.db.system_state.id.find(0);
+  return !!s && s.admin_unlocked;
+}
+
+function norm(s: string): string {
+  return s.trim().toLowerCase();
+}
+
+// Admin (console) can approve anyone; a Team Lead can approve only their own team
+function requireApprover(ctx: any, team: string): string {
+  if (isConsole(ctx)) return 'Admin';
+  const m = ctx.db.member.identity.find(ctx.sender);
+  if (!m || m.status !== 'approved') throw new SenderError('Not approved yet');
+  if (m.role === 'Team Lead' && norm(m.team) === norm(team)) return m.name;
+  throw new SenderError('Only the admin or this team\'s lead can approve');
 }
 
 const MACHINE_NEXT: Record<string, string[]> = {
@@ -284,7 +355,20 @@ function startLegalClocks(ctx: any) {
 // ---------- LIFECYCLE ----------
 
 export const init = spacetimedb.init(ctx => {
-  ctx.db.lead_badge.insert({ uid: LEAD_FOB_UID, owner: 'Incident Lead' });
+  ctx.db.lead_badge.insert({ uid: LEAD_FOB_UID, owner: ADMIN_NAME });
+  ctx.db.badge.insert({
+    uid: LEAD_FOB_UID,
+    name: ADMIN_NAME,
+    team: 'Command',
+    role: 'admin',
+    registered_at: ctx.timestamp,
+  });
+  ctx.db.system_state.insert({
+    id: 0,
+    admin_unlocked: false,
+    unlocked_at: undefined,
+    unlocked_by: '',
+  });
   ctx.db.incident.insert({
     id: 0,
     active: false,
@@ -293,7 +377,7 @@ export const init = spacetimedb.init(ctx => {
     summary: '',
     declared_at: undefined,
   });
-  writeLog(ctx, 'System', 'War Room started', 'System');
+  writeLog(ctx, 'System', 'OffGrid started (gate locked)', 'System');
 });
 
 export const onConnect = spacetimedb.clientConnected(ctx => {
@@ -321,14 +405,18 @@ export const register_console = spacetimedb.reducer(
   }
 );
 
-// A responder asks to join. Their screen shows the join code to read aloud.
+// EMPLOYEE PATH step 1: ask to join (only after the admin has unlocked the gate)
 export const request_access = spacetimedb.reducer(
-  { name: t.string(), role: t.string() },
-  (ctx, { name, role }) => {
+  { name: t.string(), role: t.string(), team: t.string() },
+  (ctx, { name, role, team }) => {
+    if (!isUnlocked(ctx))
+      throw new SenderError('Locked: waiting for the admin to authenticate at the box');
     if (!name.trim()) throw new SenderError('Name is required');
     const existing = ctx.db.member.identity.find(ctx.sender);
     if (existing && existing.status === 'revoked')
-      throw new SenderError('Access was revoked. Ask the Lead.');
+      throw new SenderError('Access was revoked. Ask the admin.');
+    if (existing && existing.status === 'approved')
+      throw new SenderError('Already approved');
     const seed =
       ctx.sender.toHexString() + ctx.timestamp.microsSinceUnixEpoch.toString();
     const code = (parseInt(fnv(seed), 16) % 10000).toString().padStart(4, '0');
@@ -336,41 +424,179 @@ export const request_access = spacetimedb.reducer(
       identity: ctx.sender,
       name: name.trim(),
       role: role.trim(),
-      status: 'pending',
+      team: team.trim(),
+      badge_uid: '',
+      status: 'awaiting_badge',
       join_code: code,
       online: true,
       requested_at: ctx.timestamp,
     };
     if (existing) ctx.db.member.identity.update(row);
     else ctx.db.member.insert(row);
-    writeLog(ctx, name.trim(), `Requested access as ${role.trim()}`);
+    writeLog(ctx, name.trim(), `Requested access as ${role.trim()} (${team.trim()}); tap badge at the box`);
   }
 );
 
-// Pico typed "!F<uid>" on the Lead console
-export const lead_tap = spacetimedb.reducer(
-  { uid: t.string() },
-  (ctx, { uid }) => {
-    requireConsole(ctx);
-    const badge = ctx.db.lead_badge.uid.find(uid.toUpperCase());
-    if (!badge) {
-      setBox(ctx, false, 'Badge not authorized');
-      writeLog(ctx, 'Box', `Rejected unknown badge ${uid}`);
+// ONE reducer for every fob tap. Pico types "!F<uid>" on the console -> call badge_tap({ uid }).
+//   admin fob, gate locked      -> unlock gate (admin authenticated)
+//   admin fob, gate unlocked    -> open 30 s approval window (keypad join-code approval still works)
+//   register mode on, new fob   -> register fob to that person
+//   registered employee fob     -> verify that person's pending request
+//   anything else               -> rejected and logged
+function handleTap(ctx: any, uid: string) {
+  requireConsole(ctx);
+  const id = uid.trim().toUpperCase();
+  const b = ctx.db.badge.uid.find(id);
+
+  if (b && b.role === 'admin') {
+    const s = ctx.db.system_state.id.find(0)!;
+    if (!s.admin_unlocked) {
+      ctx.db.system_state.id.update({
+        ...s,
+        admin_unlocked: true,
+        unlocked_at: ctx.timestamp,
+        unlocked_by: b.name,
+      });
+      setBox(ctx, true, 'Admin authenticated. OffGrid unlocked.');
+      writeLog(ctx, b.name, 'Admin authenticated with badge: gate unlocked', 'System');
       return;
     }
     const row = {
       id: 0,
-      open_until: new Timestamp(
-        ctx.timestamp.microsSinceUnixEpoch + APPROVAL_WINDOW_MICROS
-      ),
-      badge_uid: badge.uid,
+      open_until: new Timestamp(ctx.timestamp.microsSinceUnixEpoch + APPROVAL_WINDOW_MICROS),
+      badge_uid: id,
     };
     if (ctx.db.approval_window.id.find(0)) ctx.db.approval_window.id.update(row);
     else ctx.db.approval_window.insert(row);
-    setBox(ctx, true, 'Lead verified. Enter join code.');
-    writeLog(ctx, 'Lead', 'Badge tapped, approval window open');
+    setBox(ctx, true, 'Admin verified. Enter join code or approve on screen.');
+    writeLog(ctx, b.name, 'Admin badge tapped, approval window open');
+    return;
+  }
+
+  const rm = ctx.db.register_mode.id.find(0);
+  if (!b && rm && rm.until.microsSinceUnixEpoch >= ctx.timestamp.microsSinceUnixEpoch) {
+    ctx.db.badge.insert({ uid: id, name: rm.name, team: rm.team, role: rm.role, registered_at: ctx.timestamp });
+    ctx.db.register_mode.id.delete(0);
+    setBox(ctx, true, `Badge registered to ${rm.name}`);
+    writeLog(ctx, 'Admin', `Registered badge ${id} to ${rm.name} (${rm.team}, ${rm.role})`, 'System');
+    return;
+  }
+
+  if (!b) {
+    setBox(ctx, false, 'Badge not authorized');
+    writeLog(ctx, 'Box', `Rejected unknown badge ${id}`);
+    return;
+  }
+
+  if (!isUnlocked(ctx)) {
+    setBox(ctx, false, 'Locked: admin must tap in first');
+    writeLog(ctx, 'Box', `${b.name} tapped while gate locked`);
+    return;
+  }
+
+  let match: any = undefined;
+  for (const m of ctx.db.member.iter()) {
+    if (m.status === 'awaiting_badge' && norm(m.name) === norm(b.name)) {
+      if (!match || m.requested_at.microsSinceUnixEpoch > match.requested_at.microsSinceUnixEpoch)
+        match = m;
+    }
+  }
+  if (!match) {
+    setBox(ctx, false, `No pending request for ${b.name}`);
+    writeLog(ctx, 'Box', `${b.name} tapped badge but has no pending request`);
+    return;
+  }
+  ctx.db.member.identity.update({ ...match, status: 'badge_verified', badge_uid: id });
+  setBox(ctx, true, `${b.name} verified. Waiting for approval.`);
+  writeLog(ctx, b.name, `Badge verified for access request (${match.team})`);
+}
+
+export const badge_tap = spacetimedb.reducer({ uid: t.string() }, (ctx, { uid }) => handleTap(ctx, uid));
+
+// Same as badge_tap, kept so a frontend that already calls lead_tap keeps working
+export const lead_tap = spacetimedb.reducer({ uid: t.string() }, (ctx, { uid }) => handleTap(ctx, uid));
+
+// EMPLOYEE PATH step 3: admin (console) or that team's lead approves a badge-verified request
+export const approve = spacetimedb.reducer(
+  { who: t.identity() },
+  (ctx, { who }) => {
+    const m = ctx.db.member.identity.find(who);
+    if (!m) throw new SenderError('No such request');
+    const approver = requireApprover(ctx, m.team);
+    if (m.status !== 'badge_verified')
+      throw new SenderError(`${m.name} must tap their badge at the box first`);
+    ctx.db.member.identity.update({ ...m, status: 'approved' });
+    setBox(ctx, true, `Approved ${m.name}`);
+    writeLog(ctx, approver, `Approved ${m.name} (${m.role}, ${m.team}) after badge check`);
   }
 );
+
+export const deny = spacetimedb.reducer(
+  { who: t.identity() },
+  (ctx, { who }) => {
+    const m = ctx.db.member.identity.find(who);
+    if (!m) throw new SenderError('No such request');
+    const approver = requireApprover(ctx, m.team);
+    ctx.db.member.identity.update({ ...m, status: 'denied' });
+    writeLog(ctx, approver, `Denied ${m.name}`);
+  }
+);
+
+// ADMIN: register an employee's fob. Call this, then tap the new fob at the box within 60 s.
+export const start_badge_registration = spacetimedb.reducer(
+  { name: t.string(), team: t.string(), role: t.string() },
+  (ctx, { name, team, role }) => {
+    requireConsole(ctx);
+    if (!isUnlocked(ctx)) throw new SenderError('Admin must tap in first');
+    if (!name.trim()) throw new SenderError('Name is required');
+    const row = {
+      id: 0,
+      name: name.trim(),
+      team: team.trim(),
+      role: role.trim() || 'employee',
+      until: new Timestamp(ctx.timestamp.microsSinceUnixEpoch + 60_000_000n),
+    };
+    if (ctx.db.register_mode.id.find(0)) ctx.db.register_mode.id.update(row);
+    else ctx.db.register_mode.insert(row);
+    setBox(ctx, true, `Tap ${row.name}'s new badge now`);
+    writeLog(ctx, 'Admin', `Badge registration started for ${row.name}`, 'System');
+  }
+);
+
+// ADMIN: register a fob by typing its ID (if you already know it from the Pico test)
+export const register_badge = spacetimedb.reducer(
+  { uid: t.string(), name: t.string(), team: t.string(), role: t.string() },
+  (ctx, { uid, name, team, role }) => {
+    requireConsole(ctx);
+    const id = uid.trim().toUpperCase();
+    if (!id || !name.trim()) throw new SenderError('Badge ID and name are required');
+    const row = { uid: id, name: name.trim(), team: team.trim(), role: role.trim() || 'employee', registered_at: ctx.timestamp };
+    if (ctx.db.badge.uid.find(id)) ctx.db.badge.uid.update(row);
+    else ctx.db.badge.insert(row);
+    writeLog(ctx, 'Admin', `Registered badge ${id} to ${row.name} (${row.team}, ${row.role})`, 'System');
+  }
+);
+
+export const remove_badge = spacetimedb.reducer(
+  { uid: t.string() },
+  (ctx, { uid }) => {
+    requireConsole(ctx);
+    const id = uid.trim().toUpperCase();
+    const b = ctx.db.badge.uid.find(id);
+    if (!b) throw new SenderError('No such badge');
+    if (b.role === 'admin') throw new SenderError('Cannot remove the admin badge');
+    ctx.db.badge.uid.delete(id);
+    writeLog(ctx, 'Admin', `Removed badge for ${b.name}`, 'System');
+  }
+);
+
+// ADMIN: lock the gate again (e.g. end of demo). Approved people keep their access.
+export const lock_gate = spacetimedb.reducer(ctx => {
+  requireConsole(ctx);
+  const s = ctx.db.system_state.id.find(0)!;
+  ctx.db.system_state.id.update({ ...s, admin_unlocked: false });
+  writeLog(ctx, 'Admin', 'Gate locked', 'System');
+});
 
 // Pico typed "!C<digits>" on the Lead console
 export const lead_code = spacetimedb.reducer(
@@ -388,7 +614,8 @@ export const lead_code = spacetimedb.reducer(
     }
     let match: any = undefined;
     for (const m of ctx.db.member.iter()) {
-      if (m.status === 'pending' && m.join_code === code) match = m;
+      if ((m.status === 'awaiting_badge' || m.status === 'badge_verified') && m.join_code === code)
+        match = m;
     }
     ctx.db.approval_window.id.delete(0); // one approval per tap
     if (!match) {
