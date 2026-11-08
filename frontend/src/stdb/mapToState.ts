@@ -127,6 +127,18 @@ export function mapTablesToState(input: {
     }
   }
 
+  // "Infected desks over time" graph: running count of infected desks
+  {
+    const ev = machines.slice().sort((a, b) => tsMs(a.updatedAt) - tsMs(b.updatedAt));
+    const state = new Map<string, string>();
+    const pts: { at: number; count: number }[] = [];
+    for (const m of ev) {
+      state.set(m.label, m.status);
+      pts.push({ at: tsMs(m.updatedAt), count: [...state.values()].filter((v) => v === 'Infected').length });
+    }
+    if (pts.length) base.infection = pts;
+  }
+
   // Employee system reports -> the admin's Systems list and Incident graphs
   const KIND_STATUS: Record<string, SysStatus> = {
     down: 'down', slow: 'suspected', ransom: 'encrypted', suspicious: 'suspected', working: 'working',

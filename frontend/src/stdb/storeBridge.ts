@@ -40,6 +40,7 @@ export type ReducerBag = {
     systemId: string; kind: string; source: string; location: string; impact: string; doNotTouch: boolean;
   }) => Promise<boolean>;
   confirmSystem: (a: { systemId: string }) => Promise<boolean>;
+  setDesk: (a: { label: string; floor: number; status: string }) => Promise<boolean>;
   approveRequest: (a: { uid: string }) => Promise<boolean>;
   denyRequest: (a: { uid: string }) => Promise<boolean>;
   claimRequest: (a: { uid: string }) => Promise<boolean>;

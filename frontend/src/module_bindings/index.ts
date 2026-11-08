@@ -64,6 +64,7 @@ import RevokeReducer from "./revoke_reducer";
 import SeedDemoDataReducer from "./seed_demo_data_reducer";
 import SendMessageReducer from "./send_message_reducer";
 import SetAssetStatusReducer from "./set_asset_status_reducer";
+import SetDeskReducer from "./set_desk_reducer";
 import StartBadgeRegistrationReducer from "./start_badge_registration_reducer";
 import SubmitReportReducer from "./submit_report_reducer";
 import ToggleTaskDoneReducer from "./toggle_task_done_reducer";
@@ -328,6 +329,7 @@ const reducersSchema = __reducers(
   __reducerSchema("seed_demo_data", SeedDemoDataReducer),
   __reducerSchema("send_message", SendMessageReducer),
   __reducerSchema("set_asset_status", SetAssetStatusReducer),
+  __reducerSchema("set_desk", SetDeskReducer),
   __reducerSchema("start_badge_registration", StartBadgeRegistrationReducer),
   __reducerSchema("submit_report", SubmitReportReducer),
   __reducerSchema("toggle_task_done", ToggleTaskDoneReducer),

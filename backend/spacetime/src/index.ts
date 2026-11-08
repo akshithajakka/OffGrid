@@ -891,6 +891,21 @@ export const update_machine = spacetimedb.reducer(
   }
 );
 
+// ADMIN or EMPLOYEE: set a desk on the building map (creates the machine row the first time)
+export const set_desk = spacetimedb.reducer(
+  { label: t.string(), floor: t.u32(), status: t.string() },
+  (ctx, { label, floor, status }) => {
+    const who = requireApproved(ctx);
+    const existing = [...ctx.db.machine.iter()].find((m: any) => m.label === label);
+    if (existing) {
+      ctx.db.machine.id.update({ ...existing, status, updated_by: who, updated_at: ctx.timestamp });
+    } else {
+      ctx.db.machine.insert({ id: 0n, floor, label, status, updated_by: who, updated_at: ctx.timestamp });
+    }
+    writeLog(ctx, who, `Desk ${label} (floor ${floor}) marked ${status}`, 'Contain');
+  }
+);
+
 export const assign_floor = spacetimedb.reducer(
   { who: t.identity(), floor: t.u32() },
   (ctx, { who, floor }) => {

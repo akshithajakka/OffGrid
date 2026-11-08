@@ -61,8 +61,8 @@ class SpacetimeStoreFacade {
       clean: 'Clean',
     };
     const label = deskId.replace(/^d-/, '');
-    const machine = getSpacetimeBridge()?.machines.find((m) => m.label === label);
-    if (machine) getSpacetimeBridge()?.reducers.updateMachine({ id: machine.id, status: map[status] });
+    const floor = Number(/^F(\d+)/.exec(label)?.[1] ?? 0);
+    getSpacetimeBridge()?.reducers.setDesk({ label, floor, status: map[status] });
   }
 
   sendMessage(text: string) {

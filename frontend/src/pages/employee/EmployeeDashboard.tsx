@@ -8,9 +8,12 @@ import type { DeskStatus, Employee, ReportKind, Source, Task } from '../../data/
 import { CHIP, DESK, LANE_CHIP } from '../../lib/meta';
 import { ESCALATE_MS, bytes, clock, empById, lane, minSec, myRequest } from '../../lib/select';
 import { beep, buzz } from '../../lib/sound';
+import { USE_MOCK } from '../../stdb/config';
 
 /* E2: what an approved employee sees. */
-export function EmployeeDashboard({ me }: { me: Employee }) {
+export function EmployeeDashboard({ me: meIn }: { me: Employee }) {
+  // Live mode: tasks and messages are matched by name ("member:Priya Nair").
+  const me = USE_MOCK ? meIn : { ...meIn, id: `member:${meIn.name}` };
   const s = useStore();
   const now = useNow(5000);
   const req = myRequest(s, store.sid);
@@ -188,7 +191,7 @@ function TaskRow({ t, me, now }: { t: Task; me: Employee; now: number }) {
         <p className="mt-0.5 text-[13px] text-dim">{[who, t.detail, when].filter(Boolean).join(' · ')}</p>
       </div>
       <div className="flex items-center justify-end gap-2.5">
-        {mine && t.status === 'open' && <button className={`${btnGold} h-11`} onClick={() => store.ackTask(t.id)}>OK, I’m on it</button>}
+        {mine && t.status === 'open' && <button className={`${btnGold} h-11`} onClick={() => store.ackTask(t.id)}>Claim and start</button>}
         {!t.assigneeId && !done && <button className={`${btnGoldOutline} h-11`} onClick={() => store.claimTask(t.id)}>Claim</button>}
         {t.assigneeId && !(mine && t.status === 'open') && (
           <Chip {...(mine && t.status === 'acknowledged' ? { label: 'On it', cls: CHIP.BLUE } : LANE_CHIP[l])} />

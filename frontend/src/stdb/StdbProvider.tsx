@@ -70,6 +70,7 @@ function StdbBridge({ children }: { children: ReactNode }) {
   const repageTask = useReducer(reducers.repageTask);
   const submitReport = useReducer(reducers.submitReport);
   const confirmSystem = useReducer(reducers.confirmSystem);
+  const setDesk = useReducer(reducers.setDesk);
 
   const reducersBag: ReducerBag = useMemo(
     () => ({
@@ -104,6 +105,7 @@ function StdbBridge({ children }: { children: ReactNode }) {
       repageTask: wrapReducer((a) => repageTask(a)),
       submitReport: wrapReducer((a) => submitReport(a)),
       confirmSystem: wrapReducer((a) => confirmSystem(a)),
+      setDesk: wrapReducer((a) => setDesk(a)),
     }),
     [
       panic,
@@ -137,6 +139,7 @@ function StdbBridge({ children }: { children: ReactNode }) {
       repageTask,
       submitReport,
       confirmSystem,
+      setDesk,
     ]
   );
 
