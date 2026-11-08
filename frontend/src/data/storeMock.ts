@@ -49,7 +49,7 @@ function load(): State {
   return s;
 }
 
-const deviceLabel = () => (/Mobi|Android|iPhone|iPad/.test(navigator.userAgent) ? 'Phone' : 'Laptop');
+const deviceLabel = () => 'Kit laptop';
 
 class Store {
   readonly sid = sessionId();
@@ -406,4 +406,4 @@ class Store {
   }
 }
 
-export const mockStore = new Store();
+export const store = new Store();

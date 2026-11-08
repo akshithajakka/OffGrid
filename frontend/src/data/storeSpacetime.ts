@@ -20,13 +20,12 @@ class SpacetimeStoreFacade {
   get = () => getSpacetimeSnapshot() ?? freshState();
 
   cardTap(rawId: string) {
-    getSpacetimeBridge()?.reducers.leadTap({ uid: rawId.trim().toUpperCase() });
+    getSpacetimeBridge()?.reducers.badgeTap({ uid: rawId.trim().toUpperCase() });
   }
 
-  requestJoin(text: string) {
+  requestJoin(text: string, role = 'IT', team = 'Response') {
     const name = text.trim();
-    const role = 'IT';
-    getSpacetimeBridge()?.reducers.requestAccess({ name, role });
+    getSpacetimeBridge()?.reducers.requestAccess({ name, role, team });
   }
 
   approve(reqId: string) {

@@ -23,13 +23,14 @@ function giveBackText(text: string) {
   }
 }
 
-export function useFobListener(onFob: (fobId: string) => void) {
+export function useFobListener(onFob: (fobId: string) => void, enabled = true) {
   const cb = useRef(onFob);
   useEffect(() => {
     cb.current = onFob;
   });
 
   useEffect(() => {
+    if (!enabled) return;
     let buf = '';
     let timer: number | undefined;
     const release = () => {
@@ -62,5 +63,5 @@ export function useFobListener(onFob: (fobId: string) => void) {
       window.removeEventListener(FOB_EVENT, onFake);
       window.clearTimeout(timer);
     };
-  }, []);
+  }, [enabled]);
 }

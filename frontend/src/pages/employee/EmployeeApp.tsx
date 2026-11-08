@@ -7,7 +7,7 @@ import { JOIN_TTL, clock, empById, meEmployee, myRequest } from '../../lib/selec
 import { EmployeeDashboard } from './EmployeeDashboard';
 
 /*
- * Employee device (kit laptop or phone). Three steps:
+ * Employee secure kit laptop (only network: OffGrid ESP32 AP). Three steps:
  * 1. type your name  →  2. tap your keycard at the box  →  3. the Lead approves  →  dashboard.
  */
 export function EmployeeApp() {
@@ -143,7 +143,7 @@ function WhileYouWait() {
         <h2 id="ww" className="title text-[22px]">While you wait</h2>
         <ul className="mt-4 flex flex-col gap-3.5">
           {[
-            'Put your work phone and laptop on the table. Don’t turn them off.',
+            'Keep this kit laptop on the OffGrid network only—do not reconnect to corporate Wi‑Fi or VPN.',
             'Don’t open company email, Teams or shared drives.',
             'Don’t restart or unplug anything, even if it looks broken.',
             'Write down anything odd you noticed today. You’ll report it inside.',

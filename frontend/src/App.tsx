@@ -17,7 +17,7 @@ function useHash() {
 /*
  * #/lead, #/lead/access, #/lead/tasks → the main computer the board plugs into
  * #/report                            → printable report (Lead only)
- * anything else                       → employee device (kit laptop / phone)
+ * anything else                       → employee kit laptop (OffGrid Wi‑Fi only)
  */
 export default function App() {
   const hash = useHash();
@@ -30,7 +30,7 @@ export default function App() {
   return (
     <>
       {page}
-      {(import.meta.env.VITE_DEV_TOOLS === 'true' || import.meta.env.VITE_HIDE_DEMO !== 'true') && (
+      {import.meta.env.VITE_HIDE_DEMO !== 'true' && (
         <>
           <div className="h-16" aria-hidden="true" />
           <DemoTools onLead={onLead} />

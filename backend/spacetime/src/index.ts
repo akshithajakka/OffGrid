@@ -1,15 +1,15 @@
-// War Room in a Box: SpacetimeDB module (server side)
-// Drop this file into your project's spacetimedb/src/index.ts
-//
-// Before the demo, change the two constants below:
-//   SETUP_PIN      a PIN only the Lead knows, used once to register the Lead console laptop
-//   LEAD_FOB_UID   the ID your blue fob printed in the Pico test (for example "4A3F9C12")
+// OffGrid: SpacetimeDB module (server side)
 
 import { schema, t, table, SenderError } from 'spacetimedb/server';
 import { Timestamp } from 'spacetimedb';
 
 const SETUP_PIN = '2468';
-const LEAD_FOB_UID = 'CHANGE_ME';
+const LEAD_FOB_UID = 'CAB3BCDC'; // admin fob (blue) ID, uppercase hex
+// Demo employee keycard (white card), pre-registered on init
+const DEMO_EMPLOYEE_UID = 'D2967938';
+const DEMO_EMPLOYEE_NAME = 'Priya Nair';
+const DEMO_EMPLOYEE_TEAM = 'IT';
+const ADMIN_NAME = 'Incident Lead';
 const APPROVAL_WINDOW_MICROS = 30_000_000n; // 30 seconds after a fob tap
 const TASK_ESCALATE_MICROS = 120_000_000n; // 2 minutes
 const HOUR_MICROS = 3_600_000_000n;
@@ -30,17 +30,52 @@ const lead_badge = table(
   { uid: t.string().primaryKey(), owner: t.string() }
 );
 
-// Everyone who asked to join. status: pending | approved | revoked
+// Everyone who asked to join.
+// status: awaiting_badge | badge_verified | approved | denied | revoked
 const member = table(
   { name: 'member', public: true },
   {
     identity: t.identity().primaryKey(),
     name: t.string(),
     role: t.string(),
+    team: t.string(),
+    badge_uid: t.string(),
     status: t.string(),
     join_code: t.string(),
     online: t.bool(),
     requested_at: t.timestamp(),
+  }
+);
+
+const system_state = table(
+  { name: 'system_state', public: true },
+  {
+    id: t.u32().primaryKey(),
+    admin_unlocked: t.bool(),
+    unlocked_at: t.timestamp().optional(),
+    unlocked_by: t.string(),
+  }
+);
+
+const badge = table(
+  { name: 'badge', public: true },
+  {
+    uid: t.string().primaryKey(),
+    name: t.string(),
+    team: t.string(),
+    role: t.string(),
+    registered_at: t.timestamp(),
+  }
+);
+
+const register_mode = table(
+  { name: 'register_mode', public: true },
+  {
+    id: t.u32().primaryKey(),
+    name: t.string(),
+    team: t.string(),
+    role: t.string(),
+    until: t.timestamp(),
   }
 );
 
@@ -157,9 +192,29 @@ const legal_deadline = table(
   }
 );
 
+// One row per employee keycard tap that needs admin approval.
+// status: pending | approved | denied
+const access_request = table(
+  { name: 'access_request', public: true },
+  {
+    uid: t.string().primaryKey(),
+    name: t.string(),
+    team: t.string(),
+    role: t.string(),
+    status: t.string(),
+    requested_at: t.timestamp(),
+    decided_by: t.string(),
+    claimed_by: t.identity().optional(),
+  }
+);
+
 const spacetimedb = schema({
+  access_request,
   console_reg,
   lead_badge,
+  system_state,
+  badge,
+  register_mode,
   member,
   approval_window,
   box_status,
@@ -241,9 +296,26 @@ function requireLead(ctx: any): string {
   if (isConsole(ctx)) return 'Lead';
   const m = ctx.db.member.identity.find(ctx.sender);
   if (!m || m.status !== 'approved') throw new SenderError('Not approved yet');
-  if (m.role !== 'Lead' && m.role !== 'IT Lead')
-    throw new SenderError('Only Incident Lead can do this');
+  if (m.role !== 'Lead' && m.role !== 'IT Lead' && m.role !== 'Team Lead')
+    throw new SenderError('Only the admin or a team lead can do this');
   return m.name;
+}
+
+function isUnlocked(ctx: any): boolean {
+  const s = ctx.db.system_state.id.find(0);
+  return !!s && s.admin_unlocked;
+}
+
+function norm(s: string): string {
+  return s.trim().toLowerCase();
+}
+
+function requireApprover(ctx: any, team: string): string {
+  if (isConsole(ctx)) return 'Admin';
+  const m = ctx.db.member.identity.find(ctx.sender);
+  if (!m || m.status !== 'approved') throw new SenderError('Not approved yet');
+  if (m.role === 'Team Lead' && norm(m.team) === norm(team)) return m.name;
+  throw new SenderError('Only the admin or this team\'s lead can approve');
 }
 
 const MACHINE_NEXT: Record<string, string[]> = {
@@ -284,7 +356,27 @@ function startLegalClocks(ctx: any) {
 // ---------- LIFECYCLE ----------
 
 export const init = spacetimedb.init(ctx => {
-  ctx.db.lead_badge.insert({ uid: LEAD_FOB_UID, owner: 'Incident Lead' });
+  ctx.db.lead_badge.insert({ uid: LEAD_FOB_UID, owner: ADMIN_NAME });
+  ctx.db.badge.insert({
+    uid: LEAD_FOB_UID,
+    name: ADMIN_NAME,
+    team: 'Command',
+    role: 'admin',
+    registered_at: ctx.timestamp,
+  });
+  ctx.db.badge.insert({
+    uid: DEMO_EMPLOYEE_UID,
+    name: DEMO_EMPLOYEE_NAME,
+    team: DEMO_EMPLOYEE_TEAM,
+    role: 'employee',
+    registered_at: ctx.timestamp,
+  });
+  ctx.db.system_state.insert({
+    id: 0,
+    admin_unlocked: false,
+    unlocked_at: undefined,
+    unlocked_by: '',
+  });
   ctx.db.incident.insert({
     id: 0,
     active: false,
@@ -293,7 +385,7 @@ export const init = spacetimedb.init(ctx => {
     summary: '',
     declared_at: undefined,
   });
-  writeLog(ctx, 'System', 'War Room started', 'System');
+  writeLog(ctx, 'System', 'OffGrid started (gate locked)', 'System');
 });
 
 export const onConnect = spacetimedb.clientConnected(ctx => {
@@ -321,14 +413,17 @@ export const register_console = spacetimedb.reducer(
   }
 );
 
-// A responder asks to join. Their screen shows the join code to read aloud.
 export const request_access = spacetimedb.reducer(
-  { name: t.string(), role: t.string() },
-  (ctx, { name, role }) => {
+  { name: t.string(), role: t.string(), team: t.string() },
+  (ctx, { name, role, team }) => {
+    if (!isUnlocked(ctx))
+      throw new SenderError('Locked: waiting for the admin to authenticate at the box');
     if (!name.trim()) throw new SenderError('Name is required');
     const existing = ctx.db.member.identity.find(ctx.sender);
     if (existing && existing.status === 'revoked')
-      throw new SenderError('Access was revoked. Ask the Lead.');
+      throw new SenderError('Access was revoked. Ask the admin.');
+    if (existing && existing.status === 'approved')
+      throw new SenderError('Already approved');
     const seed =
       ctx.sender.toHexString() + ctx.timestamp.microsSinceUnixEpoch.toString();
     const code = (parseInt(fnv(seed), 16) % 10000).toString().padStart(4, '0');
@@ -336,41 +431,236 @@ export const request_access = spacetimedb.reducer(
       identity: ctx.sender,
       name: name.trim(),
       role: role.trim(),
-      status: 'pending',
+      team: team.trim(),
+      badge_uid: '',
+      status: 'awaiting_badge',
       join_code: code,
       online: true,
       requested_at: ctx.timestamp,
     };
     if (existing) ctx.db.member.identity.update(row);
     else ctx.db.member.insert(row);
-    writeLog(ctx, name.trim(), `Requested access as ${role.trim()}`);
+    writeLog(ctx, name.trim(), `Requested access as ${role.trim()} (${team.trim()}); tap badge at the box`);
   }
 );
 
-// Pico typed "!F<uid>" on the Lead console
-export const lead_tap = spacetimedb.reducer(
-  { uid: t.string() },
-  (ctx, { uid }) => {
-    requireConsole(ctx);
-    const badge = ctx.db.lead_badge.uid.find(uid.toUpperCase());
-    if (!badge) {
-      setBox(ctx, false, 'Badge not authorized');
-      writeLog(ctx, 'Box', `Rejected unknown badge ${uid}`);
+function handleTap(ctx: any, uid: string) {
+  requireConsole(ctx);
+  const id = uid.trim().toUpperCase();
+  const b = ctx.db.badge.uid.find(id);
+
+  if (b && b.role === 'admin') {
+    const s = ctx.db.system_state.id.find(0)!;
+    if (!s.admin_unlocked) {
+      ctx.db.system_state.id.update({
+        ...s,
+        admin_unlocked: true,
+        unlocked_at: ctx.timestamp,
+        unlocked_by: b.name,
+      });
+      setBox(ctx, true, 'Admin authenticated. OffGrid unlocked.');
+      writeLog(ctx, b.name, 'Admin authenticated with badge: gate unlocked', 'System');
       return;
     }
     const row = {
       id: 0,
-      open_until: new Timestamp(
-        ctx.timestamp.microsSinceUnixEpoch + APPROVAL_WINDOW_MICROS
-      ),
-      badge_uid: badge.uid,
+      open_until: new Timestamp(ctx.timestamp.microsSinceUnixEpoch + APPROVAL_WINDOW_MICROS),
+      badge_uid: id,
     };
     if (ctx.db.approval_window.id.find(0)) ctx.db.approval_window.id.update(row);
     else ctx.db.approval_window.insert(row);
-    setBox(ctx, true, 'Lead verified. Enter join code.');
-    writeLog(ctx, 'Lead', 'Badge tapped, approval window open');
+    setBox(ctx, true, 'Admin verified. Enter join code or approve on screen.');
+    writeLog(ctx, b.name, 'Admin badge tapped, approval window open');
+    return;
+  }
+
+  const rm = ctx.db.register_mode.id.find(0);
+  if (!b && rm && rm.until.microsSinceUnixEpoch >= ctx.timestamp.microsSinceUnixEpoch) {
+    ctx.db.badge.insert({ uid: id, name: rm.name, team: rm.team, role: rm.role, registered_at: ctx.timestamp });
+    ctx.db.register_mode.id.delete(0);
+    setBox(ctx, true, `Badge registered to ${rm.name}`);
+    writeLog(ctx, 'Admin', `Registered badge ${id} to ${rm.name} (${rm.team}, ${rm.role})`, 'System');
+    return;
+  }
+
+  if (!b) {
+    setBox(ctx, false, 'Badge not authorized');
+    writeLog(ctx, 'Box', `Rejected unknown badge ${id}`);
+    return;
+  }
+
+  if (!isUnlocked(ctx)) {
+    setBox(ctx, false, 'Locked: admin must tap in first');
+    writeLog(ctx, 'Box', `${b.name} tapped while gate locked`);
+    return;
+  }
+
+  // Employee keycard: send the admin an approval request (and verify any typed-in request with the same name)
+  for (const m of ctx.db.member.iter()) {
+    if (m.status === 'awaiting_badge' && norm(m.name) === norm(b.name)) {
+      ctx.db.member.identity.update({ ...m, status: 'badge_verified', badge_uid: id });
+    }
+  }
+  const existing = ctx.db.access_request.uid.find(id);
+  if (existing && existing.status === 'approved') {
+    setBox(ctx, true, `${b.name} is already approved`);
+    writeLog(ctx, b.name, 'Keycard tapped (already approved)');
+    return;
+  }
+  const reqRow = {
+    uid: id,
+    name: b.name,
+    team: b.team,
+    role: b.role,
+    status: 'pending',
+    requested_at: ctx.timestamp,
+    decided_by: '',
+    claimed_by: existing ? existing.claimed_by : undefined,
+  };
+  if (existing) ctx.db.access_request.uid.update(reqRow);
+  else ctx.db.access_request.insert(reqRow);
+  setBox(ctx, true, `Keycard verified: ${b.name}. Approval request sent to admin.`);
+  writeLog(ctx, b.name, `Keycard tapped: approval request sent (${b.team})`);
+}
+
+function setMemberFromRequest(ctx: any, req: any, who: any, status: string) {
+  const m = ctx.db.member.identity.find(who);
+  const row = {
+    identity: who,
+    name: req.name,
+    role: req.role,
+    team: req.team,
+    badge_uid: req.uid,
+    status,
+    join_code: m ? m.join_code : '',
+    online: true,
+    requested_at: m ? m.requested_at : ctx.timestamp,
+  };
+  if (m) ctx.db.member.identity.update(row);
+  else ctx.db.member.insert(row);
+}
+
+// ADMIN (or that team's lead): approve / deny a keycard request
+export const approve_request = spacetimedb.reducer(
+  { uid: t.string() },
+  (ctx, { uid }) => {
+    const r = ctx.db.access_request.uid.find(uid.trim().toUpperCase());
+    if (!r) throw new SenderError('No such request');
+    const approver = requireApprover(ctx, r.team);
+    ctx.db.access_request.uid.update({ ...r, status: 'approved', decided_by: approver });
+    if (r.claimed_by) setMemberFromRequest(ctx, r, r.claimed_by, 'approved');
+    setBox(ctx, true, `Approved ${r.name}`);
+    writeLog(ctx, approver, `Approved ${r.name} (${r.team}) after keycard tap`);
   }
 );
+
+export const deny_request = spacetimedb.reducer(
+  { uid: t.string() },
+  (ctx, { uid }) => {
+    const r = ctx.db.access_request.uid.find(uid.trim().toUpperCase());
+    if (!r) throw new SenderError('No such request');
+    const approver = requireApprover(ctx, r.team);
+    ctx.db.access_request.uid.update({ ...r, status: 'denied', decided_by: approver });
+    if (r.claimed_by) setMemberFromRequest(ctx, r, r.claimed_by, 'denied');
+    setBox(ctx, false, `Denied ${r.name}`);
+    writeLog(ctx, approver, `Denied ${r.name}`);
+  }
+);
+
+// EMPLOYEE COMPUTER: "that's me" - links this device to a keycard request
+export const claim_request = spacetimedb.reducer(
+  { uid: t.string() },
+  (ctx, { uid }) => {
+    if (!isUnlocked(ctx)) throw new SenderError('Locked: waiting for the admin');
+    const r = ctx.db.access_request.uid.find(uid.trim().toUpperCase());
+    if (!r) throw new SenderError('No such request');
+    if (r.status === 'denied') throw new SenderError('This request was denied');
+    ctx.db.access_request.uid.update({ ...r, claimed_by: ctx.sender });
+    setMemberFromRequest(ctx, r, ctx.sender, r.status === 'approved' ? 'approved' : 'badge_verified');
+    writeLog(ctx, r.name, 'Linked this computer to keycard request');
+  }
+);
+
+export const badge_tap = spacetimedb.reducer({ uid: t.string() }, (ctx, { uid }) => handleTap(ctx, uid));
+export const lead_tap = spacetimedb.reducer({ uid: t.string() }, (ctx, { uid }) => handleTap(ctx, uid));
+
+export const approve = spacetimedb.reducer(
+  { who: t.identity() },
+  (ctx, { who }) => {
+    const m = ctx.db.member.identity.find(who);
+    if (!m) throw new SenderError('No such request');
+    const approver = requireApprover(ctx, m.team);
+    if (m.status !== 'badge_verified')
+      throw new SenderError(`${m.name} must tap their badge at the box first`);
+    ctx.db.member.identity.update({ ...m, status: 'approved' });
+    setBox(ctx, true, `Approved ${m.name}`);
+    writeLog(ctx, approver, `Approved ${m.name} (${m.role}, ${m.team}) after badge check`);
+  }
+);
+
+export const deny = spacetimedb.reducer(
+  { who: t.identity() },
+  (ctx, { who }) => {
+    const m = ctx.db.member.identity.find(who);
+    if (!m) throw new SenderError('No such request');
+    const approver = requireApprover(ctx, m.team);
+    ctx.db.member.identity.update({ ...m, status: 'denied' });
+    writeLog(ctx, approver, `Denied ${m.name}`);
+  }
+);
+
+export const start_badge_registration = spacetimedb.reducer(
+  { name: t.string(), team: t.string(), role: t.string() },
+  (ctx, { name, team, role }) => {
+    requireConsole(ctx);
+    if (!isUnlocked(ctx)) throw new SenderError('Admin must tap in first');
+    if (!name.trim()) throw new SenderError('Name is required');
+    const row = {
+      id: 0,
+      name: name.trim(),
+      team: team.trim(),
+      role: role.trim() || 'employee',
+      until: new Timestamp(ctx.timestamp.microsSinceUnixEpoch + 60_000_000n),
+    };
+    if (ctx.db.register_mode.id.find(0)) ctx.db.register_mode.id.update(row);
+    else ctx.db.register_mode.insert(row);
+    setBox(ctx, true, `Tap ${row.name}'s new badge now`);
+    writeLog(ctx, 'Admin', `Badge registration started for ${row.name}`, 'System');
+  }
+);
+
+export const register_badge = spacetimedb.reducer(
+  { uid: t.string(), name: t.string(), team: t.string(), role: t.string() },
+  (ctx, { uid, name, team, role }) => {
+    requireConsole(ctx);
+    const id = uid.trim().toUpperCase();
+    if (!id || !name.trim()) throw new SenderError('Badge ID and name are required');
+    const row = { uid: id, name: name.trim(), team: team.trim(), role: role.trim() || 'employee', registered_at: ctx.timestamp };
+    if (ctx.db.badge.uid.find(id)) ctx.db.badge.uid.update(row);
+    else ctx.db.badge.insert(row);
+    writeLog(ctx, 'Admin', `Registered badge ${id} to ${row.name} (${row.team}, ${row.role})`, 'System');
+  }
+);
+
+export const remove_badge = spacetimedb.reducer(
+  { uid: t.string() },
+  (ctx, { uid }) => {
+    requireConsole(ctx);
+    const id = uid.trim().toUpperCase();
+    const b = ctx.db.badge.uid.find(id);
+    if (!b) throw new SenderError('No such badge');
+    if (b.role === 'admin') throw new SenderError('Cannot remove the admin badge');
+    ctx.db.badge.uid.delete(id);
+    writeLog(ctx, 'Admin', `Removed badge for ${b.name}`, 'System');
+  }
+);
+
+export const lock_gate = spacetimedb.reducer(ctx => {
+  requireConsole(ctx);
+  const s = ctx.db.system_state.id.find(0)!;
+  ctx.db.system_state.id.update({ ...s, admin_unlocked: false });
+  writeLog(ctx, 'Admin', 'Gate locked', 'System');
+});
 
 // Pico typed "!C<digits>" on the Lead console
 export const lead_code = spacetimedb.reducer(
@@ -388,7 +678,8 @@ export const lead_code = spacetimedb.reducer(
     }
     let match: any = undefined;
     for (const m of ctx.db.member.iter()) {
-      if (m.status === 'pending' && m.join_code === code) match = m;
+      if ((m.status === 'awaiting_badge' || m.status === 'badge_verified') && m.join_code === code)
+        match = m;
     }
     ctx.db.approval_window.id.delete(0); // one approval per tap
     if (!match) {
@@ -483,8 +774,8 @@ export const set_asset_status = spacetimedb.reducer(
     if (!a) throw new SenderError('No such asset');
     ctx.db.asset.id.update({ ...a, status, updated_by: who, updated_at: ctx.timestamp });
     writeLog(ctx, who, `${a.name} marked ${status}`, 'Contain');
-    const norm = status.toLowerCase();
-    if (norm.includes('exfil')) {
+    const normStatus = status.toLowerCase();
+    if (normStatus.includes('exfil')) {
       startLegalClocks(ctx);
       writeLog(
         ctx,

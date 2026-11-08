@@ -12,7 +12,7 @@ flowchart LR
     ESP32[ESP32 AP]
     Pico[Pico RFID]
     UI[React frontend]
-    STDB[(SpacetimeDB warroom)]
+    STDB[(SpacetimeDB offgrid)]
   end
   ESP32 --> UI
   Pico --> UI
@@ -32,7 +32,7 @@ Employee roster still uses UI seed data until bound to `member` rows; machines/a
 
 ## Hardware
 
-- **ESP32** (`hardware/esp32/`): isolated SSID + portal that points phones/laptops at the dashboard.
+- **ESP32** (`hardware/esp32/`): isolated SSID; employee **kit laptops** and the admin console join only this LAN and open the dashboard (no other network).
 - **Pico** (reference in teammate bundle): MFRC522 RFID, optional HID keyboard for join codes.
 
 See `docs/FRONTEND_CONTRACT.md` for UI ↔ reducer naming notes.

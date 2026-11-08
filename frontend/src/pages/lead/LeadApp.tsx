@@ -17,11 +17,11 @@ export type LeadTab = 'overview' | 'access' | 'tasks';
  * The main computer the board is plugged into. Every card or fob tapped on the reader
  * arrives here as a typed line and goes to store.cardTap(), which decides what it means.
  */
-export function LeadApp({ tab }: { tab: LeadTab }) {
+export function LeadApp({ tab, skipFobListener }: { tab: LeadTab; skipFobListener?: boolean }) {
   const s = useStore();
   const now = useNow(1000);
   const lead = isLead(s, store.sid);
-  useFobListener((id) => store.cardTap(id));
+  useFobListener((id) => store.cardTap(id), !skipFobListener);
 
   // Sound for every box event, and a chime when someone new is waiting.
   const lastNotice = useRef(s.notice?.at ?? 0);

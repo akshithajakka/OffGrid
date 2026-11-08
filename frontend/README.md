@@ -1,6 +1,6 @@
 # OffGrid frontend
 
-Vite + React War Room dashboard.
+Vite + React OffGrid dashboard.
 
 ```bash
 npm install

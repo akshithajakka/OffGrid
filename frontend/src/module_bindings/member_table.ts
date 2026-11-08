@@ -14,6 +14,8 @@ export default __t.row({
   identity: __t.identity().primaryKey(),
   name: __t.string(),
   role: __t.string(),
+  team: __t.string(),
+  badgeUid: __t.string().name("badge_uid"),
   status: __t.string(),
   joinCode: __t.string().name("join_code"),
   online: __t.bool(),

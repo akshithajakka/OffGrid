@@ -6,6 +6,7 @@ import type MachineRow from '../module_bindings/machine_table';
 import type MemberRow from '../module_bindings/member_table';
 import type MessageRow from '../module_bindings/message_table';
 import type TaskRow from '../module_bindings/task_table';
+import type SystemStateRow from '../module_bindings/system_state_table';
 import { freshState } from '../data/seed';
 import type { DataItem, JoinRequest, State, SysStatus, Tone } from '../data/types';
 
@@ -16,6 +17,7 @@ type Incident = Infer<typeof IncidentRow>;
 type LogRow = Infer<typeof LogEntryRow>;
 type Msg = Infer<typeof MessageRow>;
 type Task = Infer<typeof TaskRow>;
+type SystemState = Infer<typeof SystemStateRow>;
 
 function tsMs(t: { microsSinceUnixEpoch: bigint } | undefined): number {
   if (!t) return Date.now();
@@ -40,19 +42,27 @@ const ASSET_TO_DATA: Record<string, DataItem['status']> = {
   Restored: 'safe',
 };
 
+function mapMemberStatus(status: string): JoinRequest['status'] {
+  if (status === 'approved') return 'approved';
+  if (status === 'denied') return 'denied';
+  if (status === 'revoked') return 'revoked';
+  if (status === 'badge_verified') return 'awaiting_lead';
+  if (status === 'awaiting_badge') return 'awaiting_card';
+  if (status === 'pending') return 'awaiting_lead';
+  return 'awaiting_card';
+}
+
 export function mapMembersToRequests(members: readonly Member[], device: string): JoinRequest[] {
-  return members
-    .filter((m) => m.status === 'pending' || m.status === 'approved')
-    .map((m) => ({
+  return members.map((m) => ({
       id: m.identity.toHexString(),
       sessionId: m.identity.toHexString(),
       employeeId: null,
       typed: m.name,
       device,
-      status: m.status === 'approved' ? 'approved' : m.status === 'revoked' ? 'revoked' : 'awaiting_lead',
+      status: mapMemberStatus(m.status),
       code: m.joinCode,
       createdAt: tsMs(m.requestedAt),
-      cardAt: null,
+      cardAt: m.badgeUid ? tsMs(m.requestedAt) : null,
       decidedAt: m.status === 'approved' ? tsMs(m.requestedAt) : null,
     }));
 }
@@ -62,13 +72,15 @@ export function mapTablesToState(input: {
   machines: readonly Machine[];
   assets: readonly Asset[];
   incident: Incident | undefined;
+  systemState?: SystemState;
   log: readonly LogRow[];
   messages: readonly Msg[];
   tasks: readonly Task[];
   sid: string;
 }): State {
   const base = freshState();
-  const { members, machines, assets, incident, log, messages, tasks, sid } = input;
+  const { members, machines, assets, incident, systemState, log, messages, tasks, sid } = input;
+  const gateOpen = systemState?.adminUnlocked === true;
 
   if (incident) {
     base.incident = {
@@ -76,10 +88,12 @@ export function mapTablesToState(input: {
       code: incident.title || 'INC-001',
       kind: incident.summary || 'Cyber incident',
       severity: incident.severity,
-      status: incident.active ? 'active' : incident.declaredAt ? 'resolved' : 'standby',
+      status: incident.active ? 'active' : incident.declaredAt ? 'resolved' : gateOpen ? 'active' : 'standby',
       declaredAt: incident.declaredAt ? tsMs(incident.declaredAt) : null,
-      leadSession: incident.active ? sid : null,
+      leadSession: incident.active || gateOpen ? sid : null,
     };
+  } else if (gateOpen) {
+    base.incident = { ...base.incident, status: 'active', leadSession: sid };
   }
 
   for (const m of machines) {

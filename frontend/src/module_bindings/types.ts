@@ -10,6 +10,18 @@ import {
   type Infer as __Infer,
 } from "spacetimedb";
 
+export const AccessRequest = __t.object("AccessRequest", {
+  uid: __t.string(),
+  name: __t.string(),
+  team: __t.string(),
+  role: __t.string(),
+  status: __t.string(),
+  requestedAt: __t.timestamp(),
+  decidedBy: __t.string(),
+  claimedBy: __t.option(__t.identity()),
+});
+export type AccessRequest = __Infer<typeof AccessRequest>;
+
 export const ApprovalWindow = __t.object("ApprovalWindow", {
   id: __t.u32(),
   openUntil: __t.timestamp(),
@@ -26,6 +38,15 @@ export const Asset = __t.object("Asset", {
   updatedAt: __t.timestamp(),
 });
 export type Asset = __Infer<typeof Asset>;
+
+export const Badge = __t.object("Badge", {
+  uid: __t.string(),
+  name: __t.string(),
+  team: __t.string(),
+  role: __t.string(),
+  registeredAt: __t.timestamp(),
+});
+export type Badge = __Infer<typeof Badge>;
 
 export const BoxStatus = __t.object("BoxStatus", {
   id: __t.u32(),
@@ -92,6 +113,8 @@ export const Member = __t.object("Member", {
   identity: __t.identity(),
   name: __t.string(),
   role: __t.string(),
+  team: __t.string(),
+  badgeUid: __t.string(),
   status: __t.string(),
   joinCode: __t.string(),
   online: __t.bool(),
@@ -106,6 +129,23 @@ export const Message = __t.object("Message", {
   sent: __t.timestamp(),
 });
 export type Message = __Infer<typeof Message>;
+
+export const RegisterMode = __t.object("RegisterMode", {
+  id: __t.u32(),
+  name: __t.string(),
+  team: __t.string(),
+  role: __t.string(),
+  until: __t.timestamp(),
+});
+export type RegisterMode = __Infer<typeof RegisterMode>;
+
+export const SystemState = __t.object("SystemState", {
+  id: __t.u32(),
+  adminUnlocked: __t.bool(),
+  unlockedAt: __t.option(__t.timestamp()),
+  unlockedBy: __t.string(),
+});
+export type SystemState = __Infer<typeof SystemState>;
 
 export const Task = __t.object("Task", {
   id: __t.u64(),

@@ -1,6 +1,6 @@
 import { getSpacetimeBridge } from './storeBridge';
 import { USE_MOCK } from './config';
-import { mockStore } from '../data/storeMock';
+import { store as mockStore } from '../data/storeMock';
 
 function r() {
   const b = getSpacetimeBridge();
@@ -11,11 +11,11 @@ function r() {
 export const actions = {
   badgeTapped(uid: string) {
     if (USE_MOCK) return mockStore.cardTap(uid);
-    r().leadTap({ uid: uid.toUpperCase() });
+    r().badgeTap({ uid: uid.toUpperCase() });
   },
-  login(name: string, role: string) {
+  login(name: string, role: string, team = 'Response') {
     if (USE_MOCK) return mockStore.requestJoin(name);
-    r().requestAccess({ name, role });
+    r().requestAccess({ name, role, team });
   },
   approveJoinCode(code: string) {
     if (USE_MOCK) return;

@@ -177,7 +177,7 @@ export function busyState(): State {
   s.requests = [
     approved('dev', 5), approved('samo', 6), approved('ana', 7), approved('james', 9), approved('priya', 11),
     { id: 'r-omar', sessionId: 'demo-omar', employeeId: 'omar', typed: 'Omar Haddad', device: 'Kit laptop 05', status: 'awaiting_lead', code: '82', createdAt: now - 3 * MIN, cardAt: now - 2 * MIN, decidedAt: null },
-    { id: 'r-grace', sessionId: 'demo-grace', employeeId: 'grace', typed: 'Grace Kim', device: 'Personal phone', status: 'awaiting_lead', code: '19', createdAt: now - 2 * MIN, cardAt: now - 1 * MIN, decidedAt: null },
+    { id: 'r-grace', sessionId: 'demo-grace', employeeId: 'grace', typed: 'Grace Kim', device: 'Kit laptop', status: 'awaiting_lead', code: '19', createdAt: now - 2 * MIN, cardAt: now - 1 * MIN, decidedAt: null },
   ];
   s.access = [{ id: 'a1', at: at(36), kind: 'unknown_card', text: 'Unknown card ••••A1F0 · not in the employee database · refused automatically' }];
   return s;

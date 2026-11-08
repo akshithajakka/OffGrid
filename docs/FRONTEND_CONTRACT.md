@@ -1,13 +1,13 @@
 # Frontend contract (Person 2)
 
-SpacetimeDB database name: **`warroom`**  
+SpacetimeDB database name: **`offgrid`**  
 Host (dev): **`ws://localhost:3000`** (from `.env.local`)  
-On WARROOM Wi‑Fi: **`ws://<host-laptop-ip>:3000`**
+On OFFGRID Wi‑Fi: **`ws://<host-laptop-ip>:3000`**
 
 Regenerate bindings after backend changes:
 
 ```bash
-spacetime publish warroom --server local
+spacetime publish offgrid --server local
 spacetime generate --lang typescript --out-dir src/module_bindings --module-path spacetimedb
 ```
 

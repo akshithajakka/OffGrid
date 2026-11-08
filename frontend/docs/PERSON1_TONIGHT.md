@@ -3,8 +3,8 @@
 ## Your loop (keep `spacetime start` running)
 
 ```bash
-cd ~/Projects/warroom
-spacetime publish warroom --server local --delete-data=always --yes=all   # only when schema changes
+cd ~/Desktop/OffGrid
+spacetime publish offgrid --server local --delete-data=always --yes=all   # only when schema changes
 echo y | spacetime generate --lang typescript --out-dir src/module_bindings --module-path spacetimedb
 npm run dev
 ```
@@ -45,4 +45,4 @@ Set `LEAD_FOB_UID` in `spacetimedb/src/index.ts` from `rfid_test.py`.
 
 Schema changes need:
 
-`spacetime publish warroom --server local --delete-data=always --yes=all`
+`spacetime publish offgrid --server local --delete-data=always --yes=all`

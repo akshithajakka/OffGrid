@@ -1,17 +1,17 @@
-# SpacetimeDB module — `warroom`
+# SpacetimeDB module — `offgrid`
 
 ## Publish (local)
 
 From **repository root** (uses `spacetime.json`):
 
 ```bash
-spacetime publish warroom --server local
+spacetime publish offgrid --server local
 ```
 
 Schema-breaking changes:
 
 ```bash
-spacetime publish warroom --server local --delete-data=always --yes=all
+spacetime publish offgrid --server local --delete-data=always --yes=all
 ```
 
 ## Generate TypeScript bindings (for frontend)

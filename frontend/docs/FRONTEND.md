@@ -3,20 +3,20 @@
 ## Running on the private network
 
 1. Start Spacetime on the **brain laptop**: `spacetime start`
-2. Publish module: `spacetime publish warroom --server local`
-3. Join **WARROOM** Wi‑Fi on the laptop; get IP: `ipconfig getifaddr en0` (often `192.168.4.x`)
+2. Publish module: `spacetime publish offgrid --server local`
+3. Join **OFFGRID** Wi‑Fi on the laptop; get IP: `ipconfig getifaddr en0` (often `192.168.4.x`)
 4. Copy `.env.example` → `.env.local`:
 
 ```env
 VITE_STDB_URI=ws://192.168.4.2:3000
-VITE_STDB_MODULE=warroom
+VITE_STDB_MODULE=offgrid
 VITE_MOCK=false
 VITE_DEV_TOOLS=true
 ```
 
 5. Serve on all interfaces: `npm run dev` (Vite `host: true`)
 
-6. On phones: `http://192.168.4.2:5173` · Lead console: `http://192.168.4.2:5173#/lead`
+6. Employee kit laptops: `http://192.168.4.50:5173` · Admin console: `http://192.168.4.50:5173/admin`
 
 **No CDN** — fonts bundled via `@fontsource-variable/archivo`.
 

@@ -37,28 +37,40 @@ import {
 import AckTaskReducer from "./ack_task_reducer";
 import AddAssetReducer from "./add_asset_reducer";
 import AddNoteReducer from "./add_note_reducer";
+import ApproveReducer from "./approve_reducer";
+import ApproveRequestReducer from "./approve_request_reducer";
 import AssignFloorReducer from "./assign_floor_reducer";
+import BadgeTapReducer from "./badge_tap_reducer";
 import CheckTaskEscalationsReducer from "./check_task_escalations_reducer";
+import ClaimRequestReducer from "./claim_request_reducer";
 import CreateTaskReducer from "./create_task_reducer";
+import DenyReducer from "./deny_reducer";
+import DenyRequestReducer from "./deny_request_reducer";
 import LeadCodeReducer from "./lead_code_reducer";
 import LeadTapReducer from "./lead_tap_reducer";
+import LockGateReducer from "./lock_gate_reducer";
 import LogPageReducer from "./log_page_reducer";
 import PanicReducer from "./panic_reducer";
+import RegisterBadgeReducer from "./register_badge_reducer";
 import RegisterConsoleReducer from "./register_console_reducer";
+import RemoveBadgeReducer from "./remove_badge_reducer";
 import RequestAccessReducer from "./request_access_reducer";
 import ResolveIncidentReducer from "./resolve_incident_reducer";
 import RevokeReducer from "./revoke_reducer";
 import SeedDemoDataReducer from "./seed_demo_data_reducer";
 import SendMessageReducer from "./send_message_reducer";
 import SetAssetStatusReducer from "./set_asset_status_reducer";
+import StartBadgeRegistrationReducer from "./start_badge_registration_reducer";
 import UpdateIncidentReducer from "./update_incident_reducer";
 import UpdateMachineReducer from "./update_machine_reducer";
 
 // Import all procedure arg schemas
 
 // Import all table schema definitions
+import AccessRequestRow from "./access_request_table";
 import ApprovalWindowRow from "./approval_window_table";
 import AssetRow from "./asset_table";
+import BadgeRow from "./badge_table";
 import BoxStatusRow from "./box_status_table";
 import ConsoleRegRow from "./console_reg_table";
 import IncidentRow from "./incident_table";
@@ -68,6 +80,8 @@ import LogEntryRow from "./log_entry_table";
 import MachineRow from "./machine_table";
 import MemberRow from "./member_table";
 import MessageRow from "./message_table";
+import RegisterModeRow from "./register_mode_table";
+import SystemStateRow from "./system_state_table";
 import TaskRow from "./task_table";
 import ZoneAssignmentRow from "./zone_assignment_table";
 
@@ -75,6 +89,17 @@ import ZoneAssignmentRow from "./zone_assignment_table";
 
 /** The schema information for all tables in this module. This is defined the same was as the tables would have been defined in the server. */
 const tablesSchema = __schema({
+  accessRequest: __table({
+    name: 'access_request',
+    indexes: [
+      { accessor: 'uid', name: 'access_request_uid_idx_btree', algorithm: 'btree', columns: [
+        'uid',
+      ] },
+    ],
+    constraints: [
+      { name: 'access_request_uid_key', constraint: 'unique', columns: ['uid'] },
+    ],
+  }, AccessRequestRow),
   approvalWindow: __table({
     name: 'approval_window',
     indexes: [
@@ -97,6 +122,17 @@ const tablesSchema = __schema({
       { name: 'asset_id_key', constraint: 'unique', columns: ['id'] },
     ],
   }, AssetRow),
+  badge: __table({
+    name: 'badge',
+    indexes: [
+      { accessor: 'uid', name: 'badge_uid_idx_btree', algorithm: 'btree', columns: [
+        'uid',
+      ] },
+    ],
+    constraints: [
+      { name: 'badge_uid_key', constraint: 'unique', columns: ['uid'] },
+    ],
+  }, BadgeRow),
   boxStatus: __table({
     name: 'box_status',
     indexes: [
@@ -196,6 +232,28 @@ const tablesSchema = __schema({
       { name: 'message_id_key', constraint: 'unique', columns: ['id'] },
     ],
   }, MessageRow),
+  registerMode: __table({
+    name: 'register_mode',
+    indexes: [
+      { accessor: 'id', name: 'register_mode_id_idx_btree', algorithm: 'btree', columns: [
+        'id',
+      ] },
+    ],
+    constraints: [
+      { name: 'register_mode_id_key', constraint: 'unique', columns: ['id'] },
+    ],
+  }, RegisterModeRow),
+  systemState: __table({
+    name: 'system_state',
+    indexes: [
+      { accessor: 'id', name: 'system_state_id_idx_btree', algorithm: 'btree', columns: [
+        'id',
+      ] },
+    ],
+    constraints: [
+      { name: 'system_state_id_key', constraint: 'unique', columns: ['id'] },
+    ],
+  }, SystemStateRow),
   task: __table({
     name: 'task',
     indexes: [
@@ -225,20 +283,30 @@ const reducersSchema = __reducers(
   __reducerSchema("ack_task", AckTaskReducer),
   __reducerSchema("add_asset", AddAssetReducer),
   __reducerSchema("add_note", AddNoteReducer),
+  __reducerSchema("approve", ApproveReducer),
+  __reducerSchema("approve_request", ApproveRequestReducer),
   __reducerSchema("assign_floor", AssignFloorReducer),
+  __reducerSchema("badge_tap", BadgeTapReducer),
   __reducerSchema("check_task_escalations", CheckTaskEscalationsReducer),
+  __reducerSchema("claim_request", ClaimRequestReducer),
   __reducerSchema("create_task", CreateTaskReducer),
+  __reducerSchema("deny", DenyReducer),
+  __reducerSchema("deny_request", DenyRequestReducer),
   __reducerSchema("lead_code", LeadCodeReducer),
   __reducerSchema("lead_tap", LeadTapReducer),
+  __reducerSchema("lock_gate", LockGateReducer),
   __reducerSchema("log_page", LogPageReducer),
   __reducerSchema("panic", PanicReducer),
+  __reducerSchema("register_badge", RegisterBadgeReducer),
   __reducerSchema("register_console", RegisterConsoleReducer),
+  __reducerSchema("remove_badge", RemoveBadgeReducer),
   __reducerSchema("request_access", RequestAccessReducer),
   __reducerSchema("resolve_incident", ResolveIncidentReducer),
   __reducerSchema("revoke", RevokeReducer),
   __reducerSchema("seed_demo_data", SeedDemoDataReducer),
   __reducerSchema("send_message", SendMessageReducer),
   __reducerSchema("set_asset_status", SetAssetStatusReducer),
+  __reducerSchema("start_badge_registration", StartBadgeRegistrationReducer),
   __reducerSchema("update_incident", UpdateIncidentReducer),
   __reducerSchema("update_machine", UpdateMachineReducer),
 );
@@ -249,6 +317,8 @@ const proceduresSchema = __procedures(
 
 type __SchemaWithTableAccessorAliases = Omit<typeof tablesSchema.schemaType, "tables"> & {
   tables: typeof tablesSchema.schemaType.tables & {
+    /** @deprecated Use `accessRequest` instead. This alias will be removed in the next major version. */
+    readonly "access_request": Omit<typeof tablesSchema.schemaType.tables["accessRequest"], "accessorName"> & { readonly accessorName: "access_request" };
     /** @deprecated Use `approvalWindow` instead. This alias will be removed in the next major version. */
     readonly "approval_window": Omit<typeof tablesSchema.schemaType.tables["approvalWindow"], "accessorName"> & { readonly accessorName: "approval_window" };
     /** @deprecated Use `boxStatus` instead. This alias will be removed in the next major version. */
@@ -261,6 +331,10 @@ type __SchemaWithTableAccessorAliases = Omit<typeof tablesSchema.schemaType, "ta
     readonly "legal_deadline": Omit<typeof tablesSchema.schemaType.tables["legalDeadline"], "accessorName"> & { readonly accessorName: "legal_deadline" };
     /** @deprecated Use `logEntry` instead. This alias will be removed in the next major version. */
     readonly "log_entry": Omit<typeof tablesSchema.schemaType.tables["logEntry"], "accessorName"> & { readonly accessorName: "log_entry" };
+    /** @deprecated Use `registerMode` instead. This alias will be removed in the next major version. */
+    readonly "register_mode": Omit<typeof tablesSchema.schemaType.tables["registerMode"], "accessorName"> & { readonly accessorName: "register_mode" };
+    /** @deprecated Use `systemState` instead. This alias will be removed in the next major version. */
+    readonly "system_state": Omit<typeof tablesSchema.schemaType.tables["systemState"], "accessorName"> & { readonly accessorName: "system_state" };
     /** @deprecated Use `zoneAssignment` instead. This alias will be removed in the next major version. */
     readonly "zone_assignment": Omit<typeof tablesSchema.schemaType.tables["zoneAssignment"], "accessorName"> & { readonly accessorName: "zone_assignment" };
   };
@@ -281,12 +355,15 @@ const REMOTE_MODULE = {
 >;
 
 const tableAccessorAliases = {
+  "access_request": "accessRequest",
   "approval_window": "approvalWindow",
   "box_status": "boxStatus",
   "console_reg": "consoleReg",
   "lead_badge": "leadBadge",
   "legal_deadline": "legalDeadline",
   "log_entry": "logEntry",
+  "register_mode": "registerMode",
+  "system_state": "systemState",
   "zone_assignment": "zoneAssignment",
 } as const;
 
@@ -308,6 +385,8 @@ function __withTableAccessorAliases<T extends object>(target: T, freeze = false)
 
 type __DbViewBase = __DbConnectionImpl<typeof REMOTE_MODULE>["db"];
 export type DbView = __DbViewBase & {
+  /** @deprecated Use `accessRequest` instead. This alias will be removed in the next major version. */
+  readonly "access_request": __DbViewBase["accessRequest"];
   /** @deprecated Use `approvalWindow` instead. This alias will be removed in the next major version. */
   readonly "approval_window": __DbViewBase["approvalWindow"];
   /** @deprecated Use `boxStatus` instead. This alias will be removed in the next major version. */
@@ -320,12 +399,18 @@ export type DbView = __DbViewBase & {
   readonly "legal_deadline": __DbViewBase["legalDeadline"];
   /** @deprecated Use `logEntry` instead. This alias will be removed in the next major version. */
   readonly "log_entry": __DbViewBase["logEntry"];
+  /** @deprecated Use `registerMode` instead. This alias will be removed in the next major version. */
+  readonly "register_mode": __DbViewBase["registerMode"];
+  /** @deprecated Use `systemState` instead. This alias will be removed in the next major version. */
+  readonly "system_state": __DbViewBase["systemState"];
   /** @deprecated Use `zoneAssignment` instead. This alias will be removed in the next major version. */
   readonly "zone_assignment": __DbViewBase["zoneAssignment"];
 };
 
 type __TablesBase = __QueryBuilder<typeof tablesSchema.schemaType>;
 export type Tables = __TablesBase & {
+  /** @deprecated Use `accessRequest` instead. This alias will be removed in the next major version. */
+  readonly "access_request": __TablesBase["accessRequest"];
   /** @deprecated Use `approvalWindow` instead. This alias will be removed in the next major version. */
   readonly "approval_window": __TablesBase["approvalWindow"];
   /** @deprecated Use `boxStatus` instead. This alias will be removed in the next major version. */
@@ -338,6 +423,10 @@ export type Tables = __TablesBase & {
   readonly "legal_deadline": __TablesBase["legalDeadline"];
   /** @deprecated Use `logEntry` instead. This alias will be removed in the next major version. */
   readonly "log_entry": __TablesBase["logEntry"];
+  /** @deprecated Use `registerMode` instead. This alias will be removed in the next major version. */
+  readonly "register_mode": __TablesBase["registerMode"];
+  /** @deprecated Use `systemState` instead. This alias will be removed in the next major version. */
+  readonly "system_state": __TablesBase["systemState"];
   /** @deprecated Use `zoneAssignment` instead. This alias will be removed in the next major version. */
   readonly "zone_assignment": __TablesBase["zoneAssignment"];
 };

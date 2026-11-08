@@ -42,16 +42,16 @@ export function createConnectionBuilder(listeners?: ConnListeners) {
       setStatus('connected');
       listeners?.onIdentity?.(identity);
       listeners?.onStatus?.('connected');
-      console.info('[warroom] connected', identity.toHexString());
+      console.info('[offgrid] connected', identity.toHexString());
     })
     .onDisconnect(() => {
       setStatus('disconnected');
       listeners?.onStatus?.('disconnected');
-      console.warn('[warroom] disconnected — retrying via SDK');
+      console.warn('[offgrid] disconnected — retrying via SDK');
     })
     .onConnectError((_ctx: ErrorContext, err: Error) => {
       setStatus('disconnected');
       listeners?.onStatus?.('disconnected');
-      console.error('[warroom] connect error', err);
+      console.error('[offgrid] connect error', err);
     });
 }
