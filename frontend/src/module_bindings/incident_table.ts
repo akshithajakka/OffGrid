@@ -17,4 +17,5 @@ export default __t.row({
   severity: __t.string(),
   summary: __t.string(),
   declaredAt: __t.option(__t.timestamp()).name("declared_at"),
+  resolvedAt: __t.option(__t.timestamp()).name("resolved_at"),
 });

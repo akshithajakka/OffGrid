@@ -43,6 +43,8 @@ import AssignFloorReducer from "./assign_floor_reducer";
 import BadgeTapReducer from "./badge_tap_reducer";
 import CheckTaskEscalationsReducer from "./check_task_escalations_reducer";
 import ClaimRequestReducer from "./claim_request_reducer";
+import ClaimTaskReducer from "./claim_task_reducer";
+import ConfirmSystemReducer from "./confirm_system_reducer";
 import CreateTaskReducer from "./create_task_reducer";
 import DenyReducer from "./deny_reducer";
 import DenyRequestReducer from "./deny_request_reducer";
@@ -51,9 +53,11 @@ import LeadTapReducer from "./lead_tap_reducer";
 import LockGateReducer from "./lock_gate_reducer";
 import LogPageReducer from "./log_page_reducer";
 import PanicReducer from "./panic_reducer";
+import ReassignTaskReducer from "./reassign_task_reducer";
 import RegisterBadgeReducer from "./register_badge_reducer";
 import RegisterConsoleReducer from "./register_console_reducer";
 import RemoveBadgeReducer from "./remove_badge_reducer";
+import RepageTaskReducer from "./repage_task_reducer";
 import RequestAccessReducer from "./request_access_reducer";
 import ResolveIncidentReducer from "./resolve_incident_reducer";
 import RevokeReducer from "./revoke_reducer";
@@ -61,6 +65,8 @@ import SeedDemoDataReducer from "./seed_demo_data_reducer";
 import SendMessageReducer from "./send_message_reducer";
 import SetAssetStatusReducer from "./set_asset_status_reducer";
 import StartBadgeRegistrationReducer from "./start_badge_registration_reducer";
+import SubmitReportReducer from "./submit_report_reducer";
+import ToggleTaskDoneReducer from "./toggle_task_done_reducer";
 import UpdateIncidentReducer from "./update_incident_reducer";
 import UpdateMachineReducer from "./update_machine_reducer";
 
@@ -81,6 +87,7 @@ import MachineRow from "./machine_table";
 import MemberRow from "./member_table";
 import MessageRow from "./message_table";
 import RegisterModeRow from "./register_mode_table";
+import SystemReportRow from "./system_report_table";
 import SystemStateRow from "./system_state_table";
 import TaskRow from "./task_table";
 import ZoneAssignmentRow from "./zone_assignment_table";
@@ -243,6 +250,17 @@ const tablesSchema = __schema({
       { name: 'register_mode_id_key', constraint: 'unique', columns: ['id'] },
     ],
   }, RegisterModeRow),
+  systemReport: __table({
+    name: 'system_report',
+    indexes: [
+      { accessor: 'system_id', name: 'system_report_system_id_idx_btree', algorithm: 'btree', columns: [
+        'systemId',
+      ] },
+    ],
+    constraints: [
+      { name: 'system_report_system_id_key', constraint: 'unique', columns: ['systemId'] },
+    ],
+  }, SystemReportRow),
   systemState: __table({
     name: 'system_state',
     indexes: [
@@ -289,6 +307,8 @@ const reducersSchema = __reducers(
   __reducerSchema("badge_tap", BadgeTapReducer),
   __reducerSchema("check_task_escalations", CheckTaskEscalationsReducer),
   __reducerSchema("claim_request", ClaimRequestReducer),
+  __reducerSchema("claim_task", ClaimTaskReducer),
+  __reducerSchema("confirm_system", ConfirmSystemReducer),
   __reducerSchema("create_task", CreateTaskReducer),
   __reducerSchema("deny", DenyReducer),
   __reducerSchema("deny_request", DenyRequestReducer),
@@ -297,9 +317,11 @@ const reducersSchema = __reducers(
   __reducerSchema("lock_gate", LockGateReducer),
   __reducerSchema("log_page", LogPageReducer),
   __reducerSchema("panic", PanicReducer),
+  __reducerSchema("reassign_task", ReassignTaskReducer),
   __reducerSchema("register_badge", RegisterBadgeReducer),
   __reducerSchema("register_console", RegisterConsoleReducer),
   __reducerSchema("remove_badge", RemoveBadgeReducer),
+  __reducerSchema("repage_task", RepageTaskReducer),
   __reducerSchema("request_access", RequestAccessReducer),
   __reducerSchema("resolve_incident", ResolveIncidentReducer),
   __reducerSchema("revoke", RevokeReducer),
@@ -307,6 +329,8 @@ const reducersSchema = __reducers(
   __reducerSchema("send_message", SendMessageReducer),
   __reducerSchema("set_asset_status", SetAssetStatusReducer),
   __reducerSchema("start_badge_registration", StartBadgeRegistrationReducer),
+  __reducerSchema("submit_report", SubmitReportReducer),
+  __reducerSchema("toggle_task_done", ToggleTaskDoneReducer),
   __reducerSchema("update_incident", UpdateIncidentReducer),
   __reducerSchema("update_machine", UpdateMachineReducer),
 );
@@ -333,6 +357,8 @@ type __SchemaWithTableAccessorAliases = Omit<typeof tablesSchema.schemaType, "ta
     readonly "log_entry": Omit<typeof tablesSchema.schemaType.tables["logEntry"], "accessorName"> & { readonly accessorName: "log_entry" };
     /** @deprecated Use `registerMode` instead. This alias will be removed in the next major version. */
     readonly "register_mode": Omit<typeof tablesSchema.schemaType.tables["registerMode"], "accessorName"> & { readonly accessorName: "register_mode" };
+    /** @deprecated Use `systemReport` instead. This alias will be removed in the next major version. */
+    readonly "system_report": Omit<typeof tablesSchema.schemaType.tables["systemReport"], "accessorName"> & { readonly accessorName: "system_report" };
     /** @deprecated Use `systemState` instead. This alias will be removed in the next major version. */
     readonly "system_state": Omit<typeof tablesSchema.schemaType.tables["systemState"], "accessorName"> & { readonly accessorName: "system_state" };
     /** @deprecated Use `zoneAssignment` instead. This alias will be removed in the next major version. */
@@ -363,6 +389,7 @@ const tableAccessorAliases = {
   "legal_deadline": "legalDeadline",
   "log_entry": "logEntry",
   "register_mode": "registerMode",
+  "system_report": "systemReport",
   "system_state": "systemState",
   "zone_assignment": "zoneAssignment",
 } as const;
@@ -401,6 +428,8 @@ export type DbView = __DbViewBase & {
   readonly "log_entry": __DbViewBase["logEntry"];
   /** @deprecated Use `registerMode` instead. This alias will be removed in the next major version. */
   readonly "register_mode": __DbViewBase["registerMode"];
+  /** @deprecated Use `systemReport` instead. This alias will be removed in the next major version. */
+  readonly "system_report": __DbViewBase["systemReport"];
   /** @deprecated Use `systemState` instead. This alias will be removed in the next major version. */
   readonly "system_state": __DbViewBase["systemState"];
   /** @deprecated Use `zoneAssignment` instead. This alias will be removed in the next major version. */
@@ -425,6 +454,8 @@ export type Tables = __TablesBase & {
   readonly "log_entry": __TablesBase["logEntry"];
   /** @deprecated Use `registerMode` instead. This alias will be removed in the next major version. */
   readonly "register_mode": __TablesBase["registerMode"];
+  /** @deprecated Use `systemReport` instead. This alias will be removed in the next major version. */
+  readonly "system_report": __TablesBase["systemReport"];
   /** @deprecated Use `systemState` instead. This alias will be removed in the next major version. */
   readonly "system_state": __TablesBase["systemState"];
   /** @deprecated Use `zoneAssignment` instead. This alias will be removed in the next major version. */

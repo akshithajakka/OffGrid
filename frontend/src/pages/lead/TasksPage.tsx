@@ -40,7 +40,7 @@ function Escalation({ t }: { t: Task }) {
   return (
     <div role="alert" className="flex flex-wrap items-center gap-x-5 gap-y-3 border-2 border-[#B3221B] bg-[#1E0F0E] px-5 py-4">
       <Chip label="Escalated" cls={CHIP.RED} />
-      <span className="min-w-[280px] flex-1 text-[15px] font-semibold">{empName(s, t.assigneeId)} hasn’t pressed OK on “{t.title}” for {minSec(now - t.createdAt)}.</span>
+      <span className="min-w-[280px] flex-1 text-[15px] font-semibold">{t.assigneeId ? empName(s, t.assigneeId) : 'Nobody'} hasn’t {t.assigneeId ? 'pressed OK on' : 'claimed'} “{t.title}” for {minSec(now - t.createdAt)}.</span>
       <button className={`${btnOutline} h-11`} onClick={() => store.repage(t.id)}>Re-page {empName(s, t.assigneeId).split(' ')[0]}</button>
       <select aria-label="Give it to someone else" defaultValue="" onChange={(e) => e.target.value && store.reassign(t.id, e.target.value === 'anyone' ? null : e.target.value)} className={`${input} h-11 w-auto`}>
         <option value="">Give it to someone else…</option>
@@ -177,7 +177,7 @@ function TaskCard({ t, now }: { t: Task; now: number }) {
   const l = lane(t, now);
   const who = empName(s, t.assigneeId);
   const meta = {
-    anyone: `Posted ${clock(t.createdAt)} · not claimed yet`,
+    anyone: `Posted ${clock(t.createdAt)} · not claimed yet${t.urgent ? ` · must be claimed in ${minSec(5 * 60_000 - (now - t.createdAt))}` : ''}`,
     waiting: `Sent ${clock(t.createdAt)} · escalates in ${minSec(5 * 60_000 - (now - t.createdAt))}`,
     escalated: `No reply for ${minSec(now - t.createdAt)}${t.pings ? ` · re-paged ${t.pings}×` : ''}`,
     progress: `OK at ${clock(t.ackedAt ?? 0)}${t.dueAt ? ` · due ${clock(t.dueAt)}` : ''}`,

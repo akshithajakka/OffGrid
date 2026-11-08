@@ -6,7 +6,7 @@ import { useLiveTables } from '../../stdb/LiveTables';
 
 function toEmployee(name: string, team: string, uid: string): Employee {
   return {
-    id: uid,
+    id: `member:${name}`,
     name,
     title: team,
     dept: team,

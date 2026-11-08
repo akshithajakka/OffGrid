@@ -6,6 +6,7 @@ import { EmployeeBadgePage } from './pages/access/EmployeeBadgePage';
 import { AdminConsolePage } from './pages/access/AdminConsolePage';
 import { EmployeePathPage } from './pages/access/EmployeePathPage';
 import { GatePage } from './pages/access/GatePage';
+import { FinalReportPage } from './pages/access/FinalReportPage';
 
 export function AppRouter() {
   return (
@@ -16,6 +17,7 @@ export function AppRouter() {
         <Route path="/admin" element={<AdminConsolePage />} />
         <Route path="/employee" element={<EmployeePathPage />} />
         <Route path="/employee/badge/:uid" element={<EmployeeBadgePage />} />
+        <Route path="/report" element={<FinalReportPage />} />
         <Route path="/legacy/*" element={<App />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

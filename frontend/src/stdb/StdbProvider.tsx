@@ -37,6 +37,7 @@ function StdbBridge({ children }: { children: ReactNode }) {
   const [consoleRegs] = useTable(tables.consoleReg);
   const [registerModes] = useTable(tables.registerMode);
   const [accessRequests] = useTable(tables.accessRequest);
+  const [reports] = useTable(tables.systemReport);
 
   const panic = useReducer(reducers.panic);
   const requestAccess = useReducer(reducers.requestAccess);
@@ -63,6 +64,12 @@ function StdbBridge({ children }: { children: ReactNode }) {
   const approveRequest = useReducer(reducers.approveRequest);
   const denyRequest = useReducer(reducers.denyRequest);
   const claimRequest = useReducer(reducers.claimRequest);
+  const claimTask = useReducer(reducers.claimTask);
+  const toggleTaskDone = useReducer(reducers.toggleTaskDone);
+  const reassignTask = useReducer(reducers.reassignTask);
+  const repageTask = useReducer(reducers.repageTask);
+  const submitReport = useReducer(reducers.submitReport);
+  const confirmSystem = useReducer(reducers.confirmSystem);
 
   const reducersBag: ReducerBag = useMemo(
     () => ({
@@ -91,6 +98,12 @@ function StdbBridge({ children }: { children: ReactNode }) {
       approveRequest: wrapReducer((a) => approveRequest(a)),
       denyRequest: wrapReducer((a) => denyRequest(a)),
       claimRequest: wrapReducer((a) => claimRequest(a)),
+      claimTask: wrapReducer((a) => claimTask(a)),
+      toggleTaskDone: wrapReducer((a) => toggleTaskDone(a)),
+      reassignTask: wrapReducer((a) => reassignTask(a)),
+      repageTask: wrapReducer((a) => repageTask(a)),
+      submitReport: wrapReducer((a) => submitReport(a)),
+      confirmSystem: wrapReducer((a) => confirmSystem(a)),
     }),
     [
       panic,
@@ -118,6 +131,12 @@ function StdbBridge({ children }: { children: ReactNode }) {
       approveRequest,
       denyRequest,
       claimRequest,
+      claimTask,
+      toggleTaskDone,
+      reassignTask,
+      repageTask,
+      submitReport,
+      confirmSystem,
     ]
   );
 
@@ -133,10 +152,11 @@ function StdbBridge({ children }: { children: ReactNode }) {
         log,
         messages,
         tasks,
+        reports,
         systemState: systemStates.find((s) => s.id === 0),
         sid,
       }),
-    [members, machines, assets, incidents, log, messages, tasks, systemStates, sid]
+    [members, machines, assets, incidents, log, messages, tasks, reports, systemStates, sid]
   );
 
   const liveValue = useMemo(

@@ -166,7 +166,13 @@ function TaskRow({ t, me, now }: { t: Task; me: Employee; now: number }) {
   const done = t.status === 'done';
   const l = lane(t, now);
   const who = t.assigneeId ? (mine ? 'You' : empById(s, t.assigneeId)?.name) : 'Anyone can claim';
-  const when = mine && t.status === 'open' ? `re-pages in ${minSec(ESCALATE_MS - (now - t.createdAt))}` : done ? `done ${clock(t.doneAt ?? 0)}` : clock(t.createdAt);
+  const left = ESCALATE_MS - (now - t.createdAt);
+  const waitingOnMe = t.status === 'open' && (mine || !t.assigneeId);
+  const when = waitingOnMe && (t.urgent || mine)
+    ? left > 0
+      ? `${t.assigneeId ? 'start' : 'claim and start'} within ${minSec(left)}`
+      : `OVERDUE by ${minSec(-left)}, the admin may reassign it`
+    : done ? `done ${clock(t.doneAt ?? 0)}` : clock(t.createdAt);
   return (
     <li className={`grid grid-cols-[56px_minmax(0,1fr)_auto] items-center gap-3.5 border-b border-l-4 border-b-line py-4 pl-3 pr-4 ${mine ? `border-l-gold ${done ? 'bg-[#17150D]' : 'bg-[#1E1A0C]'}` : 'border-l-transparent'}`}>
       <div className="flex justify-center">

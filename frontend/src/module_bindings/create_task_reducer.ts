@@ -13,4 +13,6 @@ import {
 export default {
   text: __t.string(),
   assigneeName: __t.string(),
+  detail: __t.string(),
+  urgent: __t.bool(),
 };

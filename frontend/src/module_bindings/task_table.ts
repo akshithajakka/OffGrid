@@ -19,4 +19,8 @@ export default __t.row({
   createdBy: __t.string().name("created_by"),
   createdAt: __t.timestamp().name("created_at"),
   ackedAt: __t.option(__t.timestamp()).name("acked_at"),
+  detail: __t.string(),
+  urgent: __t.bool(),
+  doneAt: __t.option(__t.timestamp()).name("done_at"),
+  pings: __t.u32(),
 });

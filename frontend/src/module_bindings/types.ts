@@ -69,6 +69,7 @@ export const Incident = __t.object("Incident", {
   severity: __t.string(),
   summary: __t.string(),
   declaredAt: __t.option(__t.timestamp()),
+  resolvedAt: __t.option(__t.timestamp()),
 });
 export type Incident = __Infer<typeof Incident>;
 
@@ -139,6 +140,21 @@ export const RegisterMode = __t.object("RegisterMode", {
 });
 export type RegisterMode = __Infer<typeof RegisterMode>;
 
+export const SystemReport = __t.object("SystemReport", {
+  systemId: __t.string(),
+  kind: __t.string(),
+  source: __t.string(),
+  location: __t.string(),
+  impact: __t.string(),
+  doNotTouch: __t.bool(),
+  reportedBy: __t.string(),
+  reportedTeam: __t.string(),
+  reportedAt: __t.timestamp(),
+  confirmed: __t.bool(),
+  confirmedAt: __t.option(__t.timestamp()),
+});
+export type SystemReport = __Infer<typeof SystemReport>;
+
 export const SystemState = __t.object("SystemState", {
   id: __t.u32(),
   adminUnlocked: __t.bool(),
@@ -156,6 +172,10 @@ export const Task = __t.object("Task", {
   createdBy: __t.string(),
   createdAt: __t.timestamp(),
   ackedAt: __t.option(__t.timestamp()),
+  detail: __t.string(),
+  urgent: __t.bool(),
+  doneAt: __t.option(__t.timestamp()),
+  pings: __t.u32(),
 });
 export type Task = __Infer<typeof Task>;
 

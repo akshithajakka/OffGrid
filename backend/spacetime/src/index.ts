@@ -101,6 +101,7 @@ const incident = table(
     severity: t.string(), // Low | Medium | High | Critical
     summary: t.string(),
     declared_at: t.timestamp().optional(),
+    resolved_at: t.timestamp().optional(),
   }
 );
 
@@ -176,6 +177,28 @@ const task = table(
     created_by: t.string(),
     created_at: t.timestamp(),
     acked_at: t.timestamp().optional(),
+    detail: t.string(),
+    urgent: t.bool(),
+    done_at: t.timestamp().optional(),
+    pings: t.u32(),
+  }
+);
+
+// Employee system reports (one row per company system; latest report wins)
+const system_report = table(
+  { name: 'system_report', public: true },
+  {
+    system_id: t.string().primaryKey(),
+    kind: t.string(), // down | slow | ransom | suspicious | working
+    source: t.string(),
+    location: t.string(),
+    impact: t.string(),
+    do_not_touch: t.bool(),
+    reported_by: t.string(),
+    reported_team: t.string(),
+    reported_at: t.timestamp(),
+    confirmed: t.bool(),
+    confirmed_at: t.timestamp().optional(),
   }
 );
 
@@ -225,6 +248,7 @@ const spacetimedb = schema({
   machine,
   zone_assignment,
   task,
+  system_report,
   legal_deadline,
 });
 export default spacetimedb;
@@ -384,6 +408,7 @@ export const init = spacetimedb.init(ctx => {
     severity: 'Low',
     summary: '',
     declared_at: undefined,
+    resolved_at: undefined,
   });
   writeLog(ctx, 'System', 'OffGrid started (gate locked)', 'System');
 });
@@ -735,8 +760,14 @@ export const update_incident = spacetimedb.reducer(
 export const resolve_incident = spacetimedb.reducer(ctx => {
   requireConsole(ctx);
   const i = ctx.db.incident.id.find(0)!;
-  ctx.db.incident.id.update({ ...i, active: false });
-  writeLog(ctx, 'Lead', 'Incident resolved');
+  const st = ctx.db.system_state.id.find(0);
+  ctx.db.incident.id.update({
+    ...i,
+    active: false,
+    declared_at: i.declared_at ?? (st ? st.unlocked_at : undefined) ?? ctx.timestamp,
+    resolved_at: ctx.timestamp,
+  });
+  writeLog(ctx, 'Lead', 'Incident resolved. Final report generated.');
 });
 
 export const add_note = spacetimedb.reducer(
@@ -874,37 +905,121 @@ export const assign_floor = spacetimedb.reducer(
   }
 );
 
+const isOpenAssignee = (n: string) => !n || n === 'Anyone';
+
+// ADMIN: create a task for one person, or open to anyone (assignee_name '' or 'Anyone')
 export const create_task = spacetimedb.reducer(
-  { text: t.string(), assignee_name: t.string() },
-  (ctx, { text, assignee_name }) => {
+  { text: t.string(), assignee_name: t.string(), detail: t.string(), urgent: t.bool() },
+  (ctx, { text, assignee_name, detail, urgent }) => {
     const lead = requireLead(ctx);
     if (!text.trim()) throw new SenderError('Task text required');
+    const who = isOpenAssignee(assignee_name.trim()) ? '' : assignee_name.trim();
     ctx.db.task.insert({
       id: 0n,
       text: text.trim(),
-      assignee_name: assignee_name.trim(),
+      assignee_name: who,
       status: 'open',
       escalated: false,
       created_by: lead,
       created_at: ctx.timestamp,
       acked_at: undefined,
+      detail: detail.trim(),
+      urgent,
+      done_at: undefined,
+      pings: 0,
     });
-    writeLog(ctx, lead, `Task assigned to ${assignee_name}: ${text}`, 'Contain');
+    writeLog(ctx, lead, `${urgent ? 'URGENT task' : 'Task'} ${who ? `assigned to ${who}` : 'open to anyone'}: ${text.trim()}`, 'Contain');
   }
 );
 
+// EMPLOYEE: take an open task (it starts right away)
+export const claim_task = spacetimedb.reducer({ id: t.u64() }, (ctx, { id }) => {
+  const who = requireApproved(ctx);
+  const tk = ctx.db.task.id.find(id);
+  if (!tk) throw new SenderError('No such task');
+  if (!isOpenAssignee(tk.assignee_name) || tk.status !== 'open') throw new SenderError('Already taken');
+  ctx.db.task.id.update({ ...tk, assignee_name: who, status: 'acknowledged', acked_at: ctx.timestamp });
+  writeLog(ctx, who, `Claimed and started: ${tk.text}`, 'Recover');
+});
+
+// EMPLOYEE: start a task assigned to me
 export const ack_task = spacetimedb.reducer({ id: t.u64() }, (ctx, { id }) => {
   const who = requireApproved(ctx);
   const tk = ctx.db.task.id.find(id);
   if (!tk) throw new SenderError('No such task');
   if (tk.assignee_name !== who && !isConsole(ctx))
-    throw new SenderError('Only assignee can acknowledge');
+    throw new SenderError('Only assignee can start this');
   ctx.db.task.id.update({
     ...tk,
     status: 'acknowledged',
     acked_at: ctx.timestamp,
   });
-  writeLog(ctx, who, `Acknowledged task: ${tk.text}`, 'Recover');
+  writeLog(ctx, who, `Started task: ${tk.text}`, 'Recover');
+});
+
+// EMPLOYEE (assignee) or ADMIN: mark done / undo
+export const toggle_task_done = spacetimedb.reducer({ id: t.u64() }, (ctx, { id }) => {
+  const who = requireApproved(ctx);
+  const tk = ctx.db.task.id.find(id);
+  if (!tk) throw new SenderError('No such task');
+  if (tk.assignee_name !== who && !isConsole(ctx)) throw new SenderError('Only assignee or admin');
+  if (tk.status === 'done') {
+    ctx.db.task.id.update({ ...tk, status: 'acknowledged', done_at: undefined });
+  } else {
+    ctx.db.task.id.update({ ...tk, status: 'done', done_at: ctx.timestamp, acked_at: tk.acked_at ?? ctx.timestamp });
+    writeLog(ctx, who, `Done: ${tk.text}`, 'Recover');
+  }
+});
+
+// ADMIN: give the task to someone else (or the open pool). Restarts the 5-minute clock.
+export const reassign_task = spacetimedb.reducer(
+  { id: t.u64(), assignee_name: t.string() },
+  (ctx, { id, assignee_name }) => {
+    const lead = requireLead(ctx);
+    const tk = ctx.db.task.id.find(id);
+    if (!tk) throw new SenderError('No such task');
+    const who = isOpenAssignee(assignee_name.trim()) ? '' : assignee_name.trim();
+    ctx.db.task.id.update({
+      ...tk, assignee_name: who, status: 'open', created_at: ctx.timestamp,
+      acked_at: undefined, escalated: false, pings: 0,
+    });
+    writeLog(ctx, lead, `Reassigned to ${who || 'anyone'}: ${tk.text}`, 'Contain');
+  }
+);
+
+// ADMIN: re-page the same person. Restarts the 5-minute clock.
+export const repage_task = spacetimedb.reducer({ id: t.u64() }, (ctx, { id }) => {
+  const lead = requireLead(ctx);
+  const tk = ctx.db.task.id.find(id);
+  if (!tk) throw new SenderError('No such task');
+  ctx.db.task.id.update({ ...tk, created_at: ctx.timestamp, pings: tk.pings + 1, escalated: false });
+  writeLog(ctx, lead, `Re-paged ${tk.assignee_name || 'anyone'}: ${tk.text}`, 'Contain');
+});
+
+// EMPLOYEE: report the state of a company system
+export const submit_report = spacetimedb.reducer(
+  { system_id: t.string(), kind: t.string(), source: t.string(), location: t.string(), impact: t.string(), do_not_touch: t.bool() },
+  (ctx, { system_id, kind, source, location, impact, do_not_touch }) => {
+    const who = requireApproved(ctx);
+    const m = ctx.db.member.identity.find(ctx.sender);
+    const row = {
+      system_id, kind, source, location: location.trim(), impact: impact.trim() || 'None given',
+      do_not_touch, reported_by: who, reported_team: m ? m.team : 'Admin',
+      reported_at: ctx.timestamp, confirmed: false, confirmed_at: undefined,
+    };
+    if (ctx.db.system_report.system_id.find(system_id)) ctx.db.system_report.system_id.update(row);
+    else ctx.db.system_report.insert(row);
+    writeLog(ctx, who, `System report: ${system_id} is ${kind}${location.trim() ? ` (${location.trim()})` : ''}`, 'Detect');
+  }
+);
+
+// ADMIN: confirm a reported system
+export const confirm_system = spacetimedb.reducer({ system_id: t.string() }, (ctx, { system_id }) => {
+  const lead = requireLead(ctx);
+  const r = ctx.db.system_report.system_id.find(system_id);
+  if (!r) throw new SenderError('No report for that system');
+  ctx.db.system_report.system_id.update({ ...r, confirmed: true, confirmed_at: ctx.timestamp });
+  writeLog(ctx, lead, `Confirmed system report: ${system_id}`, 'Detect');
 });
 
 export const check_task_escalations = spacetimedb.reducer(ctx => {

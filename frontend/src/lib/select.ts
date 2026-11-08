@@ -39,7 +39,8 @@ export const awaitingCard = (s: State, now: number) =>
 export type TaskLane = 'anyone' | 'waiting' | 'escalated' | 'progress' | 'done';
 export function lane(t: Task, now: number): TaskLane {
   if (t.status === 'done') return 'done';
-  if (!t.assigneeId) return 'anyone';
+  // Urgent open-to-anyone tasks also have to be claimed within 5 minutes.
+  if (!t.assigneeId) return t.urgent && t.status === 'open' && now - t.createdAt > ESCALATE_MS ? 'escalated' : 'anyone';
   if (t.status === 'acknowledged') return 'progress';
   return now - t.createdAt > ESCALATE_MS ? 'escalated' : 'waiting';
 }

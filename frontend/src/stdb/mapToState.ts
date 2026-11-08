@@ -6,6 +6,7 @@ import type MachineRow from '../module_bindings/machine_table';
 import type MemberRow from '../module_bindings/member_table';
 import type MessageRow from '../module_bindings/message_table';
 import type TaskRow from '../module_bindings/task_table';
+import type SystemReportRow from '../module_bindings/system_report_table';
 import type SystemStateRow from '../module_bindings/system_state_table';
 import { freshState } from '../data/seed';
 import type { DataItem, JoinRequest, State, SysStatus, Tone } from '../data/types';
@@ -17,6 +18,7 @@ type Incident = Infer<typeof IncidentRow>;
 type LogRow = Infer<typeof LogEntryRow>;
 type Msg = Infer<typeof MessageRow>;
 type Task = Infer<typeof TaskRow>;
+type SystemReport = Infer<typeof SystemReportRow>;
 type SystemState = Infer<typeof SystemStateRow>;
 
 function tsMs(t: { microsSinceUnixEpoch: bigint } | undefined): number {
@@ -56,7 +58,7 @@ export function mapMembersToRequests(members: readonly Member[], device: string)
   return members.map((m) => ({
       id: m.identity.toHexString(),
       sessionId: m.identity.toHexString(),
-      employeeId: null,
+      employeeId: `member:${m.name}`, // matches the employee rows built from members
       typed: m.name,
       device,
       status: mapMemberStatus(m.status),
@@ -76,10 +78,12 @@ export function mapTablesToState(input: {
   log: readonly LogRow[];
   messages: readonly Msg[];
   tasks: readonly Task[];
+  reports?: readonly SystemReport[];
   sid: string;
 }): State {
   const base = freshState();
   const { members, machines, assets, incident, systemState, log, messages, tasks, sid } = input;
+  const reports = input.reports ?? [];
   const gateOpen = systemState?.adminUnlocked === true;
   // The incident clock starts when the admin fob unlocks OffGrid.
   const unlockedMs = gateOpen && systemState?.unlockedAt ? tsMs(systemState.unlockedAt) : null;
@@ -90,9 +94,10 @@ export function mapTablesToState(input: {
       code: incident.title || 'INC-001',
       kind: incident.summary || 'Cyber incident',
       severity: incident.severity,
-      status: incident.active ? 'active' : incident.declaredAt ? 'resolved' : gateOpen ? 'active' : 'standby',
+      status: incident.resolvedAt ? 'resolved' : incident.active || gateOpen ? 'active' : 'standby',
       declaredAt: incident.declaredAt ? tsMs(incident.declaredAt) : unlockedMs,
-      leadSession: incident.active || gateOpen ? sid : null,
+      resolvedAt: incident.resolvedAt ? tsMs(incident.resolvedAt) : null,
+      leadSession: incident.active || gateOpen || incident.resolvedAt ? sid : null,
     };
   } else if (gateOpen) {
     base.incident = { ...base.incident, status: 'active', leadSession: sid, declaredAt: unlockedMs };
@@ -120,6 +125,32 @@ export function mapTablesToState(input: {
                 : 'unchecked';
       desk.status = ds;
     }
+  }
+
+  // Employee system reports -> the admin's Systems list and Incident graphs
+  const KIND_STATUS: Record<string, SysStatus> = {
+    down: 'down', slow: 'suspected', ransom: 'encrypted', suspicious: 'suspected', working: 'working',
+  };
+  const KIND_TEXT: Record<string, string> = {
+    down: 'not working', slow: 'slow or acting strange', ransom: 'ransom note or locked files',
+    suspicious: 'suspicious activity', working: 'working normally',
+  };
+  const SOURCE_TEXT: Record<string, string> = {
+    self: 'Saw it myself', told: 'Someone told me', error: 'Error message', alert: 'Security alert',
+  };
+  for (const r of reports) {
+    const sys = base.systems.find((x) => x.id === r.systemId);
+    if (!sys) continue;
+    sys.status = KIND_STATUS[r.kind] ?? 'suspected';
+    sys.reportedKind = r.kind as never;
+    sys.reportedBy = `${r.reportedBy} (${r.reportedTeam})`;
+    sys.location = r.location;
+    sys.impact = r.impact;
+    sys.doNotTouch = r.doNotTouch;
+    sys.howWeKnow = `${SOURCE_TEXT[r.source] ?? r.source}: ${KIND_TEXT[r.kind] ?? r.kind}`;
+    sys.at = tsMs(r.reportedAt);
+    sys.confirmed = r.confirmed;
+    sys.confirmedAt = r.confirmedAt ? tsMs(r.confirmedAt) : null;
   }
 
   base.requests = mapMembersToRequests(members, 'Laptop');
@@ -172,20 +203,27 @@ export function mapTablesToState(input: {
     pinned: false,
   }));
 
-  base.tasks = tasks.map((t) => ({
-    id: String(t.id),
-    title: t.text,
-    detail: '',
-    assigneeId: t.assigneeName,
-    status:
-      t.status === 'acknowledged' ? 'acknowledged' : t.status === 'done' ? 'done' : 'open',
-    urgent: t.escalated,
-    dueAt: null,
-    createdAt: tsMs(t.createdAt),
-    ackedAt: t.ackedAt ? tsMs(t.ackedAt) : null,
-    doneAt: null,
-    pings: t.escalated ? 1 : 0,
-  }));
+  const URGENT_MS = 5 * 60_000; // urgent tasks must be started within 5 minutes
+  base.tasks = tasks
+    .map((t) => {
+      const createdAt = tsMs(t.createdAt);
+      const assignee = t.assigneeName && t.assigneeName !== 'Anyone' ? t.assigneeName : null;
+      return {
+        id: String(t.id),
+        title: t.text,
+        detail: t.detail,
+        assigneeId: assignee ? (base.employees.find((e) => e.name === assignee)?.id ?? `member:${assignee}`) : null,
+        status: (t.status === 'acknowledged' ? 'acknowledged' : t.status === 'done' ? 'done' : 'open') as
+          'open' | 'acknowledged' | 'done',
+        urgent: t.urgent || t.escalated,
+        dueAt: t.urgent ? createdAt + URGENT_MS : null,
+        createdAt,
+        ackedAt: t.ackedAt ? tsMs(t.ackedAt) : null,
+        doneAt: t.doneAt ? tsMs(t.doneAt) : null,
+        pings: t.pings,
+      };
+    })
+    .sort((a, b) => b.createdAt - a.createdAt);
 
   return base;
 }

@@ -86,11 +86,11 @@ function LeadHeaderRight() {
       {active && confirm && (
         <span className="flex items-center gap-2 text-sm">
           Resolve for everyone?
-          <button className="h-10 bg-white px-4 text-[12px] caps text-[#B3221B]" onClick={() => { store.resolve(); setConfirm(false); }}>Yes, resolve</button>
+          <button className="h-10 bg-white px-4 text-[12px] caps text-[#B3221B]" onClick={async () => { await store.resolve(); setConfirm(false); window.setTimeout(() => { window.location.href = '/report'; }, 600); }}>Yes, resolve</button>
           <button className="h-10 px-2 underline" onClick={() => setConfirm(false)}>Cancel</button>
         </span>
       )}
-      {!active && <a href="#/report" className="flex h-10 items-center bg-white px-4 text-[12px] caps text-[#1F5E3D]">Final report</a>}
+      {!active && <a href="/report" className="flex h-10 items-center bg-white px-4 text-[12px] caps text-[#1F5E3D]">Final report</a>}
     </>
   );
 }

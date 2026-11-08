@@ -205,7 +205,7 @@ export function Counsel({ n = '04' }: { n?: string }) {
         <li className="flex items-center gap-3 border-b border-line py-3">
           <span className="text-dim">{Icon.doc}</span>
           <div className="min-w-0 flex-1"><p className="text-[14px] font-bold">Incident report (auto)</p><p className="text-[12px] text-dim">Updated live · {s.log.length} timeline entries</p></div>
-          <a href="#/report" className="text-[12px] text-gold underline">View</a>
+          <a href="/report" className="text-[12px] text-gold underline">View</a>
         </li>
         {s.files.slice().reverse().map((f) => (
           <li key={f.id} className="flex items-center gap-3 border-b border-line py-3">
@@ -218,7 +218,7 @@ export function Counsel({ n = '04' }: { n?: string }) {
         <button className={`${btnGold} h-12`} onClick={() => window.confirm(`Send the report and ${s.files.length} files to ${s.counsel.to}?`) && store.sendToLawyer()}>
           {Icon.scale} Send to lawyer
         </button>
-        <a href="#/report" className={`${btnOutline} h-12`}>Download PDF</a>
+        <a href="/report" className={`${btnOutline} h-12`}>Download PDF</a>
       </div>
       <p className="mt-3 text-[12px] text-faint">{s.counsel.sentAt ? `Last sent to ${s.counsel.to} at ${clock(s.counsel.sentAt)}.` : `Not sent yet. Goes to ${s.counsel.to}.`}</p>
     </Section>

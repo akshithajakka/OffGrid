@@ -17,7 +17,7 @@ function useGateUnlocked(): boolean {
 
 function memberToEmployee(name: string, role: string, id: string): Employee {
   return {
-    id,
+    id: `member:${name}`,
     name,
     title: role,
     dept: 'IT',

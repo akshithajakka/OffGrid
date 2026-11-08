@@ -12,6 +12,14 @@ function sessionId() {
   return sid;
 }
 
+/** Employee ids look like "member:Priya Nair" (live) or a seed id; the backend stores names. */
+function personName(id: string | null): string {
+  if (!id) return '';
+  if (id.startsWith('member:')) return id.slice(7);
+  const st = getSpacetimeSnapshot();
+  return st?.employees.find((e) => e.id === id)?.name ?? id;
+}
+
 /** Store-shaped API backed by SpacetimeDB reducers (subset for demo paths). */
 class SpacetimeStoreFacade {
   readonly sid = sessionId();
@@ -72,7 +80,7 @@ class SpacetimeStoreFacade {
   }
 
   resolve() {
-    getSpacetimeBridge()?.reducers.resolveIncident();
+    return getSpacetimeBridge()?.reducers.resolveIncident();
   }
 
   markPaged(_groups: Group[]) {
@@ -99,18 +107,23 @@ class SpacetimeStoreFacade {
     /* presence via onConnect */
   }
 
-  submitReport(_r: ReportInput) {
-    this.addLog('System report submitted (see scope in Data tab)');
+  submitReport(r: ReportInput) {
+    getSpacetimeBridge()?.reducers.submitReport({
+      systemId: r.systemId, kind: r.kind, source: r.source, location: r.location,
+      impact: r.impact, doNotTouch: r.doNotTouch,
+    });
   }
 
   ackTask(taskId: string) {
     getSpacetimeBridge()?.reducers.ackTask({ id: BigInt(taskId) });
   }
 
-  createTask(title: string, _detail: string, assigneeId: string | null) {
+  createTask(title: string, detail: string, assigneeId: string | null, urgent = false, _dueMins: number | null = null) {
     getSpacetimeBridge()?.reducers.createTask({
       text: title,
-      assigneeName: assigneeId ?? 'Anyone',
+      detail: detail ?? '',
+      assigneeName: personName(assigneeId),
+      urgent: !!urgent,
     });
   }
 
@@ -131,17 +144,20 @@ class SpacetimeStoreFacade {
   }
 
   toggleDone(taskId: string) {
-    this.ackTask(taskId);
+    getSpacetimeBridge()?.reducers.toggleTaskDone({ id: BigInt(taskId) });
   }
 
-  claimTask(_taskId: string) {}
+
+  claimTask(taskId: string) {
+    getSpacetimeBridge()?.reducers.claimTask({ id: BigInt(taskId) });
+  }
 
   nudge(employeeId: string) {
-    this.addLog(`Reminder sent to ${employeeId}`);
+    this.addLog(`Reminder sent to ${personName(employeeId)}`);
   }
 
   confirmSystem(systemId: string) {
-    this.addLog(`Confirmed system ${systemId}`);
+    getSpacetimeBridge()?.reducers.confirmSystem({ systemId });
   }
 
   addFiles(_files: { name: string; size: number }[]) {
@@ -153,11 +169,11 @@ class SpacetimeStoreFacade {
   }
 
   repage(taskId: string) {
-    this.addLog(`Re-paged assignee for task ${taskId}`);
+    getSpacetimeBridge()?.reducers.repageTask({ id: BigInt(taskId) });
   }
 
   reassign(taskId: string, assigneeId: string | null) {
-    this.addLog(`Task ${taskId} reassigned to ${assigneeId ?? 'open pool'}`);
+    getSpacetimeBridge()?.reducers.reassignTask({ id: BigInt(taskId), assigneeName: personName(assigneeId) });
   }
 }
 

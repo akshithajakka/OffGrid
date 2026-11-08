@@ -30,8 +30,16 @@ export type ReducerBag = {
   seedDemo: () => Promise<boolean>;
   resolveIncident: () => Promise<boolean>;
   registerConsole: (a: { pin: string }) => Promise<boolean>;
-  createTask: (a: { text: string; assigneeName: string }) => Promise<boolean>;
+  createTask: (a: { text: string; assigneeName: string; detail: string; urgent: boolean }) => Promise<boolean>;
   ackTask: (a: { id: bigint }) => Promise<boolean>;
+  claimTask: (a: { id: bigint }) => Promise<boolean>;
+  toggleTaskDone: (a: { id: bigint }) => Promise<boolean>;
+  reassignTask: (a: { id: bigint; assigneeName: string }) => Promise<boolean>;
+  repageTask: (a: { id: bigint }) => Promise<boolean>;
+  submitReport: (a: {
+    systemId: string; kind: string; source: string; location: string; impact: string; doNotTouch: boolean;
+  }) => Promise<boolean>;
+  confirmSystem: (a: { systemId: string }) => Promise<boolean>;
   approveRequest: (a: { uid: string }) => Promise<boolean>;
   denyRequest: (a: { uid: string }) => Promise<boolean>;
   claimRequest: (a: { uid: string }) => Promise<boolean>;
