@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import { Icon } from '../../components/ui';
 import { useStore } from '../../data/react';
 import { USE_MOCK } from '../../stdb/config';
@@ -13,6 +13,13 @@ function useGateUnlocked(): boolean {
 
 export function GatePage() {
   const unlocked = useGateUnlocked();
+  const live = useLiveTables();
+  const isConsole =
+    !USE_MOCK && !!live?.identity && !!live?.consoleReg && live.consoleReg.identity.isEqual(live.identity);
+  const consoleExists = !USE_MOCK && !!live?.consoleReg;
+  // Employee devices: once the admin has unlocked OffGrid, go straight to employee sign-in.
+  if (unlocked && consoleExists && !isConsole) return <Navigate to="/employee" replace />;
+  const showAdmin = !consoleExists || isConsole;
 
   return (
     <div className="flex min-h-screen flex-col bg-[#A31D17] text-white">
@@ -48,12 +55,12 @@ export function GatePage() {
             <p className="max-w-xl text-[20px] font-semibold leading-snug">
               Waiting for the admin to authenticate at the box.
             </p>
-            <Link
+            {showAdmin && <Link
               to="/admin"
               className="mt-4 min-w-[200px] border-2 border-white bg-black/40 px-8 py-4 text-[16px] font-bold uppercase tracking-wide hover:bg-black/60"
             >
               Admin
-            </Link>
+            </Link>}
             <p className="max-w-md text-[14px] text-white/70">Employee entry stays locked until the admin taps in.</p>
           </>
         )}

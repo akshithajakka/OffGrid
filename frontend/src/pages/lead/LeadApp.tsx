@@ -1,3 +1,4 @@
+import { USE_MOCK } from '../../stdb/config';
 import { useEffect, useRef, useState } from 'react';
 import { Header } from '../../components/Header';
 import { Icon } from '../../components/ui';
@@ -20,7 +21,11 @@ export type LeadTab = 'overview' | 'access' | 'tasks';
 export function LeadApp({ tab, skipFobListener }: { tab: LeadTab; skipFobListener?: boolean }) {
   const s = useStore();
   const now = useNow(1000);
-  const lead = isLead(s, store.sid);
+  // Live mode: this page only renders on the registered console, so once the gate is open
+  // (admin fob tapped) this laptop is the admin. Mock mode keeps the per-session check.
+  const lead = USE_MOCK
+    ? isLead(s, store.sid)
+    : s.incident.leadSession != null && s.incident.status !== 'standby';
   useFobListener((id) => store.cardTap(id), !skipFobListener);
 
   // Sound for every box event, and a chime when someone new is waiting.

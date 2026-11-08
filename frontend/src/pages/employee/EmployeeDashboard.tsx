@@ -293,7 +293,7 @@ function ReportForm({ me }: { me: Employee }) {
 function Messages({ me, pinned }: { me: Employee; pinned?: string }) {
   const s = useStore();
   const [text, setText] = useState('');
-  const msgs = s.messages.filter((m) => empById(s, m.authorId)?.role === 'lead' || m.authorId === me.id).slice().reverse();
+  const msgs = s.messages.filter((m) => empById(s, m.authorId)?.role === 'lead' || m.authorId === me.id || empById(s, m.authorId)?.name === me.name).slice().reverse();
   return (
     <Section n="04" eyebrow="From the lead" title="Messages" icon={Icon.chat}>
       {pinned && <p className="mt-4 border border-[#B3221B] bg-[#2A0E0C] px-4 py-3.5 text-[14px] leading-relaxed"><strong>Pinned:</strong> {pinned}</p>}
@@ -303,7 +303,7 @@ function Messages({ me, pinned }: { me: Employee; pinned?: string }) {
           const a = empById(s, m.authorId);
           return (
             <li key={m.id} className={`border-l-2 pl-3 ${a?.role === 'lead' ? 'border-l-red' : 'border-l-line2'}`}>
-              <p className="text-[13px]"><strong>{a?.id === me.id ? 'You' : a?.name}</strong> <span className="text-[10.5px] uppercase tracking-[0.14em] text-faint">{a?.role === 'lead' ? 'Incident Lead' : a?.dept} · {clock(m.at)}</span></p>
+              <p className="text-[13px]"><strong>{a?.id === me.id || a?.name === me.name ? 'You' : (a?.name ?? m.authorId)}</strong> <span className="text-[10.5px] uppercase tracking-[0.14em] text-faint">{a?.role === 'lead' ? 'Incident Lead · Admin' : [a?.dept, a?.title && a.title !== a.dept ? a.title : ''].filter(Boolean).join(' · ')} · {clock(m.at)}</span></p>
               <p className="text-[14px] leading-snug">{m.text}</p>
             </li>
           );

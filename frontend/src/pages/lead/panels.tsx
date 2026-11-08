@@ -266,8 +266,8 @@ export function Chat({ n = '07', asLead }: { n?: string; asLead: boolean }) {
           return (
             <li key={m.id} className={`border-l-2 pl-3 ${a?.role === 'lead' ? 'border-l-red' : 'border-l-line2'}`}>
               <p className="text-[13px]">
-                <strong>{a?.name}</strong>{' '}
-                <span className="text-[10.5px] uppercase tracking-[0.14em] text-faint">{a?.role === 'lead' ? 'Incident Lead' : a?.dept} · {clock(m.at)}</span>
+                <strong>{a?.name ?? m.authorId}</strong>{' '}
+                <span className="text-[10.5px] uppercase tracking-[0.14em] text-faint">{a?.role === 'lead' ? 'Incident Lead · Admin' : [a?.dept, a?.title && a.title !== a.dept ? a.title : ''].filter(Boolean).join(' · ')} · {clock(m.at)}</span>
                 {m.pinned && <span className="ml-2 text-[10.5px] caps text-gold">Pinned</span>}
               </p>
               <p className="text-[14px] leading-snug">{m.text}</p>

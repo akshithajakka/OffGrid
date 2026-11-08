@@ -81,6 +81,8 @@ export function mapTablesToState(input: {
   const base = freshState();
   const { members, machines, assets, incident, systemState, log, messages, tasks, sid } = input;
   const gateOpen = systemState?.adminUnlocked === true;
+  // The incident clock starts when the admin fob unlocks OffGrid.
+  const unlockedMs = gateOpen && systemState?.unlockedAt ? tsMs(systemState.unlockedAt) : null;
 
   if (incident) {
     base.incident = {
@@ -89,11 +91,11 @@ export function mapTablesToState(input: {
       kind: incident.summary || 'Cyber incident',
       severity: incident.severity,
       status: incident.active ? 'active' : incident.declaredAt ? 'resolved' : gateOpen ? 'active' : 'standby',
-      declaredAt: incident.declaredAt ? tsMs(incident.declaredAt) : null,
+      declaredAt: incident.declaredAt ? tsMs(incident.declaredAt) : unlockedMs,
       leadSession: incident.active || gateOpen ? sid : null,
     };
   } else if (gateOpen) {
-    base.incident = { ...base.incident, status: 'active', leadSession: sid };
+    base.incident = { ...base.incident, status: 'active', leadSession: sid, declaredAt: unlockedMs };
   }
 
   for (const m of machines) {
@@ -137,10 +139,35 @@ export function mapTablesToState(input: {
     tone: (e.phase === 'Contain' ? 'amber' : 'blue') as Tone,
   }));
 
+  // People who joined through OffGrid become employees, so names and roles show up everywhere.
+  const leadEmp = base.employees.find((e) => e.role === 'lead');
+  for (const mem of members) {
+    const id = `member:${mem.name}`;
+    if (base.employees.some((e) => e.id === id)) continue;
+    base.employees.push({
+      id,
+      name: mem.name,
+      title: mem.role,
+      dept: mem.team,
+      empId: mem.badgeUid || id,
+      cardId: mem.badgeUid || '',
+      role: 'it',
+      group: 'it',
+      teamId: null,
+      reportsTo: 'Incident Lead',
+      active: true,
+    });
+  }
+  const authorIdFor = (sender: string) => {
+    if (sender === 'Lead' && leadEmp) return leadEmp.id;
+    const e = base.employees.find((x) => x.name === sender);
+    return e ? e.id : sender;
+  };
+
   base.messages = messages.map((m) => ({
     id: String(m.id),
     at: tsMs(m.sent),
-    authorId: m.senderName,
+    authorId: authorIdFor(m.senderName),
     text: m.text,
     pinned: false,
   }));

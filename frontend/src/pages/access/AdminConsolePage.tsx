@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { LeadApp, type LeadTab } from '../lead/LeadApp';
 import { btnGold, btnOutline, input } from '../../components/ui';
@@ -32,8 +33,8 @@ export function AdminConsolePage() {
 
   const consoleOk = useMemo(() => {
     if (USE_MOCK) return localStorage.getItem(CONSOLE_KEY) === '1';
-    if (!live?.identity || !live.consoleReg) return localStorage.getItem(CONSOLE_KEY) === '1';
-    return live.consoleReg.identity.isEqual(live.identity) || localStorage.getItem(CONSOLE_KEY) === '1';
+    if (!live?.identity || !live.consoleReg) return false;
+    return live.consoleReg.identity.isEqual(live.identity);
   }, [live?.consoleReg, live?.identity]);
 
   // The Pico listener runs app-wide (GlobalBoxKeys); this just shows the last tap.
@@ -56,6 +57,18 @@ export function AdminConsolePage() {
     const ok = await live?.reducers.registerConsole({ pin });
     if (ok) localStorage.setItem(CONSOLE_KEY, '1');
   };
+
+  if (!consoleOk && !USE_MOCK && live?.consoleReg) {
+    return (
+      <div className="mx-auto flex min-h-screen max-w-md flex-col justify-center gap-6 px-6 text-center">
+        <h1 className="title text-[30px]">Admin console is on the OffGrid box laptop</h1>
+        <p className="text-[15px] text-dim">This device is an employee device. Tap your keycard at the box to get in.</p>
+        <Link to="/employee" className={btnGold}>
+          Go to employee sign-in
+        </Link>
+      </div>
+    );
+  }
 
   if (!consoleOk) {
     return (

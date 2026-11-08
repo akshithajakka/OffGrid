@@ -17,7 +17,8 @@ class SpacetimeStoreFacade {
   readonly sid = sessionId();
 
   subscribe = (l: () => void) => subscribeSpacetimeStore(l);
-  get = () => getSpacetimeSnapshot() ?? freshState();
+  private fallback = freshState();
+  get = () => getSpacetimeSnapshot() ?? this.fallback;
 
   cardTap(rawId: string) {
     getSpacetimeBridge()?.reducers.badgeTap({ uid: rawId.trim().toUpperCase() });

@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Link, Navigate } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { btnGold, input } from '../../components/ui';
 import { useStore } from '../../data/react';
 import type { Employee } from '../../data/types';
@@ -38,6 +38,22 @@ export function EmployeePathPage() {
   const [role, setRole] = useState('IT');
   const [team, setTeam] = useState('Response');
   const [submitted, setSubmitted] = useState(false);
+  const navigate = useNavigate();
+  const openedAt = useRef(Date.now() - 2000);
+  const isConsole =
+    !!live?.identity && !!live?.consoleReg && live.consoleReg.identity.isEqual(live.identity);
+
+  // When a keycard is tapped at the box after this screen opened, jump to that keycard's page.
+  // Goes through SpacetimeDB, so it works on any device on the OffGrid network.
+  useEffect(() => {
+    if (USE_MOCK || isConsole || !live) return;
+    const fresh = live.accessRequests.find((r) => {
+      if (r.status !== 'pending' || r.claimedBy) return false;
+      const ms = Number(r.requestedAt.microsSinceUnixEpoch / 1000n);
+      return ms >= openedAt.current;
+    });
+    if (fresh) navigate(`/employee/badge/${fresh.uid}`);
+  }, [live?.accessRequests, isConsole, navigate]);
 
   if (!unlocked) return <Navigate to="/" replace />;
 
